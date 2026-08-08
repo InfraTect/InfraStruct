@@ -1,0 +1,68 @@
+plugins {
+    id 'java-library'
+    id 'com.diffplug.spotless' version '6.25.0'   // 포맷터
+    id 'net.ltgt.errorprone' version '4.1.0'      // 린터
+    id 'jacoco'                                    // 커버리지
+}
+
+// 배포 좌표 (실제 배포는 나중. 지금은 값만 정해둔다.)
+group = 'com.infratect'
+version = '0.1.0'
+
+repositories {
+    mavenCentral()
+}
+
+java {
+    // 로컬 JDK 개수와 무관하게 JDK 21 을 자동 인식/다운로드.
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    // 더 최신 JDK 로 빌드하더라도 21 이후 API 를 실수로 못 쓰게 막는다 → 소비자는 21 에서 동작.
+    options.release = 21
+}
+
+dependencies {
+    // 클래스패스 스캔 (스프링 컴포넌트 스캔과 같은 역할).
+    api 'io.github.classgraph:classgraph:4.8.179'
+    // 상태 직렬화용 JSON.
+    implementation 'com.google.code.gson:gson:2.11.0'
+
+    // 린터: 컴파일 중 실제 버그를 잡는다.
+    errorprone 'com.google.errorprone:error_prone_core:2.31.0'
+
+    // 테스트
+    testImplementation platform('org.junit:junit-bom:5.11.3')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.assertj:assertj-core:3.26.3'
+    testImplementation 'org.mockito:mockito-core:5.14.2'
+    testImplementation 'org.mockito:mockito-junit-jupiter:5.14.2'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// 포맷터: ./gradlew spotlessApply (자동 수정) / spotlessCheck (검증)
+spotless {
+    java {
+        target 'src/**/*.java'
+        // google-java-format 의 AOSP 변형 → 들여쓰기 4-space (현행 .editorconfig 관례 유지).
+        googleJavaFormat('1.22.0').aosp()
+        removeUnusedImports()
+        formatAnnotations()
+    }
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+    testLogging {
+        exceptionFormat = 'full'
+    }
+    finalizedBy tasks.named('jacocoTestReport')
+}
+
+tasks.named('jacocoTestReport') {
+    dependsOn tasks.named('test')
+}

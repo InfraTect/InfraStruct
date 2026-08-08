@@ -1,0 +1,5 @@
+// 루트 빌드 스크립트.
+// 이 레포는 모듈이 framework 하나뿐이라, 공통 설정을 뿌리는 subprojects{} 나
+// build-logic convention plugin 이 필요 없다. 실제 설정은 framework/build.gradle 에 있다.
+//
+// (모듈이 늘어나면 그때 build-logic 도입을 검토한다.)

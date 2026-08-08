@@ -1,0 +1,8 @@
+# 모든 텍스트 파일은 저장소·체크아웃 모두 LF 로 통일.
+* text=auto eol=lf
+
+# 바이너리는 변환 금지.
+*.jar binary
+
+# 윈도우 배치 스크립트만 CRLF 유지.
+*.bat text eol=crlf

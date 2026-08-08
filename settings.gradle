@@ -1,0 +1,10 @@
+// InfraStruct — 프레임워크 코어 레포.
+// 프로바이더/example 은 각각 별도 레포에서 관리하고, 배포된 framework 아티팩트에 의존한다.
+plugins {
+    // Java toolchain(JDK 21) 자동 다운로드를 위한 resolver.
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
+rootProject.name = 'infrastruct'
+
+include 'framework'

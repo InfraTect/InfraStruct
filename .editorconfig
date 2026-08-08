@@ -1,0 +1,24 @@
+root = true
+
+# 모든 파일 기본값: UTF-8, LF, 공백 정리, 마지막 개행.
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Java 는 google-java-format AOSP(4-space) 와 일치.
+[*.java]
+indent_size = 4
+
+# Windows 배치 스크립트는 CRLF 유지.
+[*.bat]
+end_of_line = crlf
+
+[*.{gradle,properties}]
+indent_size = 4
+
+[*.md]
+trim_trailing_whitespace = false
