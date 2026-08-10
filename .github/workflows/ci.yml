@@ -1,0 +1,49 @@
+name: CI
+
+# 언제 도는가:
+#  - main / dev 로 향하는 PR 이 열리거나 갱신될 때  → 병합 전 검사
+#  - main / dev 에 실제로 커밋이 올라갈 때(병합 직후 등) → 사후 확인
+on:
+  pull_request:
+    branches: [main, dev]
+  push:
+    branches: [main, dev]
+
+# 같은 PR 에 새 커밋을 밀면 진행 중이던 이전 검사를 취소해 CI 시간을 아낀다.
+#  - PR 은 head_ref 로 묶여 → 이전 실행 취소됨
+#  - main/dev 직접 푸시는 head_ref 가 없어 run_id(고유) 로 → 절대 취소 안 됨
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+# 이 워크플로는 코드를 읽기만 하면 된다(최소 권한).
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: build-test-format-lint   # ← 브랜치 보호에서 "필수 검사"로 지정할 이름
+    runs-on: ubuntu-latest
+    steps:
+      # ① 레포 코드를 러너로 가져온다.
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # ② JDK 21 설치. 이 프로젝트 빌드는 반드시 21 에서 돌아야 한다.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      # ③ Gradle 세팅: 의존성/빌드 캐싱 + gradlew wrapper 무결성 검증(기본 동작).
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # ④ 포맷 검사(Spotless). 여기서 깨지면 "Format" 단계가 빨갛게 → 원인이 한눈에.
+      - name: Format check (Spotless)
+        run: ./gradlew spotlessCheck
+
+      # ⑤ 빌드 + 테스트(JUnit) + 린터(SpotBugs) 를 한 번에. ('build' 가 셋 다 포함)
+      - name: Build, test & lint
+        run: ./gradlew build
