@@ -1,7 +1,7 @@
 plugins {
     id 'java-library'
     id 'com.diffplug.spotless' version '6.25.0'   // 포맷터
-    id 'net.ltgt.errorprone' version '4.1.0'      // 린터
+    id 'com.github.spotbugs' version '6.0.26'     // 린터 (버그 탐지)
     id 'jacoco'                                    // 커버리지
 }
 
@@ -32,9 +32,6 @@ dependencies {
     // 상태 직렬화용 JSON.
     implementation 'com.google.code.gson:gson:2.11.0'
 
-    // 린터: 컴파일 중 실제 버그를 잡는다.
-    errorprone 'com.google.errorprone:error_prone_core:2.31.0'
-
     // 테스트
     testImplementation platform('org.junit:junit-bom:5.11.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
@@ -52,6 +49,24 @@ spotless {
         googleJavaFormat('1.22.0').aosp()
         removeUnusedImports()
         formatAnnotations()
+    }
+}
+
+// 린터: SpotBugs — 컴파일된 바이트코드에서 버그 패턴을 찾는다.
+// spotbugsMain 태스크가 만들어지고, check/build 에 자동으로 포함된다.
+// 실행: ./gradlew spotbugsMain  (리포트: build/reports/spotbugs/main.html)
+spotbugs {
+    toolVersion = '4.8.6'
+}
+
+tasks.named('spotbugsMain') {
+    reports {
+        html {
+            required = true    // 사람이 읽기 좋은 HTML 리포트
+        }
+        xml {
+            required = false
+        }
     }
 }
 
