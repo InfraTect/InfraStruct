@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE module PUBLIC
+        "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+        "https://checkstyle.org/dtds/configuration_1_3.dtd">
+
+<!--
+  InfraStruct Checkstyle 룰셋.
+
+  역할 분담:
+    - 포맷(들여쓰기/줄바꿈/공백/임포트 정렬) → Spotless(google-java-format AOSP) 가 자동 수정한다.
+    - 이 파일 → 포맷터가 못 잡는 "코드 관례"만 검사한다. 네이밍, 임포트 위생, 구조, 흔한 실수.
+  그래서 WhitespaceAround / Indentation / LeftCurly 같은 모듈은 일부러 넣지 않았다.
+  (넣으면 Spotless 결과와 싸우게 되고, 둘 다 통과시키는 게 불가능해지는 경우가 생긴다.)
+
+  google_checks.xml / sun_checks.xml 을 쓰지 않는 이유:
+    - google_checks 는 2-space 들여쓰기를 강제한다 → 우리 AOSP(4-space) 와 정면 충돌.
+    - sun_checks 는 Javadoc/매직넘버까지 전부 켜져 있어 초기부터 소음이 너무 크다.
+-->
+<module name="Checker">
+    <property name="severity" value="error"/>
+    <property name="charset" value="UTF-8"/>
+    <!-- 소스만 검사(리소스/설정 파일 제외). -->
+    <property name="fileExtensions" value="java"/>
+
+    <!-- 파일 끝 개행 / 탭 금지: .editorconfig 와 같은 약속을 빌드에서도 강제. -->
+    <module name="NewlineAtEndOfFile">
+        <property name="lineSeparator" value="lf"/>
+    </module>
+    <module name="FileTabCharacter">
+        <property name="eachLine" value="true"/>
+    </module>
+
+    <!--
+      줄 길이. 포맷터(AOSP)가 100 컬럼에서 접어 주지만 긴 URL/문자열은 못 접는다.
+      그래서 상한을 120 으로 두고, 임포트와 URL 이 든 줄은 예외로 뺀다.
+    -->
+    <module name="LineLength">
+        <property name="max" value="120"/>
+        <property name="ignorePattern" value="^package .*|^import .*|https?://|@see\s"/>
+    </module>
+
+    <!-- @SuppressWarnings("checkstyle:RuleName") 으로 예외를 둘 수 있게 한다. -->
+    <module name="SuppressWarningsFilter"/>
+
+    <!--
+      경로 기준 예외 목록. 파일이 없으면 그냥 무시된다(optional=true).
+      규칙을 통째로 끄기 전에, 먼저 여기서 좁게 예외를 주는 걸 우선한다.
+    -->
+    <module name="SuppressionFilter">
+        <property name="file" value="${config_loc}/suppressions.xml"/>
+        <property name="optional" value="true"/>
+    </module>
+
+    <module name="TreeWalker">
+        <module name="SuppressWarningsHolder"/>
+
+        <!-- ── 네이밍 ─────────────────────────────────────────────── -->
+        <module name="PackageName">
+            <property name="format" value="^[a-z]+(\.[a-z][a-z0-9]*)*$"/>
+        </module>
+        <module name="TypeName"/>
+        <module name="MethodName"/>
+        <module name="MemberName"/>
+        <module name="ParameterName"/>
+        <module name="LocalVariableName"/>
+        <module name="LocalFinalVariableName"/>
+        <module name="ConstantName"/>
+        <module name="StaticVariableName"/>
+        <module name="ClassTypeParameterName"/>
+        <module name="MethodTypeParameterName"/>
+        <module name="InterfaceTypeParameterName"/>
+        <module name="RecordComponentName"/>
+        <module name="PatternVariableName"/>
+        <module name="LambdaParameterName"/>
+
+        <!-- ── 임포트 위생 ────────────────────────────────────────── -->
+        <!-- 스타 임포트 금지: 어떤 타입이 어디서 왔는지 추적 가능해야 한다. -->
+        <module name="AvoidStarImport"/>
+        <module name="UnusedImports">
+            <property name="processJavadoc" value="true"/>
+        </module>
+        <module name="RedundantImport"/>
+        <!-- sun.* 등 내부 API 직접 사용 금지. -->
+        <module name="IllegalImport"/>
+
+        <!-- ── 블록 ───────────────────────────────────────────────── -->
+        <!-- 한 줄짜리 if 라도 중괄호를 쓴다(나중에 줄 추가하다 생기는 버그 차단). -->
+        <module name="NeedBraces"/>
+        <module name="EmptyBlock">
+            <property name="option" value="text"/>
+            <property name="tokens"
+                      value="LITERAL_TRY, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE,
+                             LITERAL_FOR, LITERAL_WHILE, LITERAL_DO, LITERAL_SWITCH,
+                             INSTANCE_INIT, STATIC_INIT"/>
+        </module>
+        <!-- 예외를 조용히 삼키지 않는다. 의도한 무시라면 변수명을 expected/ignored 로. -->
+        <module name="EmptyCatchBlock">
+            <property name="exceptionVariableName" value="expected|ignored"/>
+        </module>
+
+        <!-- ── 코딩 관례 / 흔한 실수 ──────────────────────────────── -->
+        <module name="EqualsHashCode"/>
+        <module name="CovariantEquals"/>
+        <module name="StringLiteralEquality"/>
+        <module name="SimplifyBooleanExpression"/>
+        <module name="SimplifyBooleanReturn"/>
+        <module name="FallThrough"/>
+        <module name="OneStatementPerLine"/>
+        <module name="MultipleVariableDeclarations"/>
+        <module name="ModifiedControlVariable"/>
+        <module name="DefaultComesLast"/>
+        <module name="NoFinalizer"/>
+        <module name="EqualsAvoidNull"/>
+        <module name="IllegalThrows"/>
+        <module name="ArrayTypeStyle"/>
+        <module name="UpperEll"/>
+        <module name="PackageDeclaration"/>
+        <module name="OuterTypeFilename"/>
+        <module name="OneTopLevelClass"/>
+
+        <!-- ── 제어자 ─────────────────────────────────────────────── -->
+        <module name="ModifierOrder"/>
+        <!-- 인터페이스의 public, final 필드의 중복 제어자 등을 제거. -->
+        <module name="RedundantModifier"/>
+
+        <!-- ── 설계 ───────────────────────────────────────────────── -->
+        <!-- private 생성자만 있는 클래스는 final 로. -->
+        <module name="FinalClass"/>
+        <!-- static 멤버만 있는 유틸 클래스는 인스턴스화되면 안 된다. -->
+        <module name="HideUtilityClassConstructor"/>
+
+        <!-- ── Javadoc ────────────────────────────────────────────── -->
+        <!--
+          "Javadoc 을 쓰라"가 아니라 "쓴 Javadoc 이 틀리지 않았는지"만 본다.
+          공개 API(api/spi) 문서화를 강제할 시점이 오면 아래 MissingJavadoc* 주석을 풀면 된다.
+        -->
+        <module name="InvalidJavadocPosition"/>
+        <module name="JavadocMethod">
+            <property name="validateThrows" value="true"/>
+        </module>
+        <module name="NonEmptyAtclauseDescription"/>
+        <module name="JavadocContentLocation"/>
+        <!--
+        <module name="MissingJavadocType">
+            <property name="scope" value="public"/>
+        </module>
+        <module name="MissingJavadocMethod">
+            <property name="scope" value="public"/>
+        </module>
+        -->
+    </module>
+</module>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suppressions PUBLIC
+        "-//Checkstyle//DTD SuppressionFilter Configuration 1.2//EN"
+        "https://checkstyle.org/dtds/suppressions_1_2.dtd">
+
+<!--
+  Checkstyle 예외 목록.
+
+  규칙 하나가 거슬린다고 checkstyle.xml 에서 모듈을 통째로 빼기 전에,
+  먼저 여기서 "이 파일에서만" 좁게 예외를 준다. 예외에는 이유를 주석으로 남긴다.
+  한 줄만 예외로 두고 싶다면 코드에 @SuppressWarnings("checkstyle:RuleName") 을 쓰는 쪽이 더 낫다.
+
+  예시:
+  <suppress checks="HideUtilityClassConstructor"
+            files="[\\/]internal[\\/]SomeBootstrap\.java$"/>
+-->
+<suppressions>
+    <!-- 테스트는 픽스처 클래스/헬퍼가 많아 설계 규칙을 그대로 적용하기 어렵다. -->
+    <suppress checks="HideUtilityClassConstructor|FinalClass|JavadocMethod"
+              files="[\\/]src[\\/]test[\\/]java[\\/]"/>
+</suppressions>

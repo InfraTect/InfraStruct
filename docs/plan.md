@@ -39,7 +39,7 @@
 | 레포 모델 | **멀티레포** — 이 레포=코어, 프로바이더/example=별도 레포 | ✅ |
 | 모듈 구조 | 이 레포는 **`framework` 단일 모듈** | ✅ |
 | 포맷터 | **Spotless + google-java-format (AOSP 4-space)** | ✅ 완료 |
-| 린터 | **SpotBugs** | ✅ 완료 |
+| 린터 | **SpotBugs**(버그 패턴) + **Checkstyle**(코드 관례) | ✅ 완료 |
 | 테스트 | JUnit 5 + **AssertJ** + Mockito + **JaCoCo** | ✅ 완료 |
 | CI | **GitHub Actions** — main/dev PR·push 에서 빌드·테스트·포맷·린터 검증 | ✅ 완료 |
 | 좌표(coordinate) | `com.infratect : infrastruct-framework : 0.1.0` | ✅ (배포는 나중) |
@@ -83,15 +83,22 @@ Terraform: HashiCorp의 코어가 한 레포, `terraform-provider-aws` 등은 **
 - **포맷터 — Spotless + google-java-format(AOSP 4-space)**
   - `./gradlew spotlessApply`(자동 수정) / `spotlessCheck`(검증). import 정렬 포함.
   - AOSP 변형 선택 → 들여쓰기 4-space (기존 `.editorconfig` 관례 유지). → §5 결정 완료(B안).
+  - 4-space 를 먼저 고르고 AOSP 를 찾은 게 아니라, **MVP-2 에서 계승한 `.editorconfig` 가 이미 4-space 라 거기에 맞는 변형을 고른 것**이다(§0). AOSP 도 google-java-format 이 1급 지원하는 공식 변형이며, Oracle 공식 Java 컨벤션·IntelliJ 기본값도 4-space 다.
 - **린터 — SpotBugs**
   - 컴파일된 바이트코드에서 버그 패턴(자원 누수, null 역참조, `==` 오용 등)을 찾음.
   - `./gradlew spotbugsMain` → 리포트 `build/reports/spotbugs/main.html`. `build`/`check` 에 자동 포함.
   - 아직 실제 코드가 없어 현재 `NO-SOURCE`(배선만 검증). 코드 작성 시부터 실제 분석 시작.
+- **린터 — Checkstyle**
+  - 소스코드에서 스타일/관례 위반(네이밍, 스타 임포트, 중괄호 생략, 유틸 클래스 생성자 등)을 찾음.
+  - `./gradlew checkstyleMain` → 리포트 `build/reports/checkstyle/main.html`. `build`/`check` 에 자동 포함.
+  - 룰셋은 레포 루트 `config/checkstyle/checkstyle.xml`(예외는 `suppressions.xml`) — 모듈이 늘어도 공유.
+  - 포맷(들여쓰기/공백/줄바꿈)은 Spotless 담당이라 룰셋에서 **의도적으로 제외**했다. google_checks 는 2-space 강제라 AOSP 와 충돌해서 안 씀.
+  - SpotBugs 와 역할이 다르다: SpotBugs=바이트코드의 '버그', Checkstyle=소스의 '관례'.
 - **테스트 — JUnit 5 + AssertJ + Mockito + JaCoCo**
   - `./gradlew test` → 실행 + `jacocoTestReport` 커버리지 생성.
 - **패키지 뼈대 — spi / api / internal** (각 `package-info.java`로 역할 명시)
 - **CI — GitHub Actions (`.github/workflows/ci.yml`)**
-  - main/dev 로의 PR + 그 브랜치 push 에서 `spotlessCheck` + `./gradlew build`(테스트·SpotBugs 포함) 실행. JDK 21 세팅 + Gradle 캐싱 + wrapper 검증.
+  - main/dev 로의 PR + 그 브랜치 push 에서 `spotlessCheck` + `./gradlew build`(테스트·SpotBugs·Checkstyle 포함) 실행. JDK 21 세팅 + Gradle 캐싱 + wrapper 검증.
   - ⚠️ 워크플로는 검사만 "실행". 직접 푸시 금지·검사 통과 강제·리뷰 요구는 저장소 **Branch Protection** 에서 별도 설정(필수 검사명: `build-test-format-lint`). 상세 브랜치 전략은 §10.
 
 > 배포·build-logic·버전카탈로그·providers·example은 이번 범위에서 **의도적으로 제외**.
@@ -107,8 +114,10 @@ InfraStruct/
 ├── gradle.properties
 ├── gradle/wrapper/          # Gradle 8.10.2
 ├── .editorconfig  .gitignore  .gitattributes
+├── config/checkstyle/       # checkstyle.xml + suppressions.xml (모듈 공용 룰셋)
+├── docs/                    # plan.md(왜) + CONTRIBUTING.md(어떻게) + CONVENTIONS.md(규칙)
 └── framework/
-    ├── build.gradle         # Java21 + Spotless + SpotBugs + 테스트
+    ├── build.gradle         # Java21 + Spotless + SpotBugs + Checkstyle + 테스트
     └── src/
         ├── main/java/com/infrastruct/
         │   ├── api/         # 사용자가 import (InfraStruct.run, @Resource ...)
@@ -183,6 +192,7 @@ InfraStruct/
 - ✅ 배포 = 순수 설정이므로 나중(계정 생길 때). 구조만 지금 확정.
 - ✅ 프로바이더 개발 키트(Gradle 플러그인) = 나중.
 - ✅ 린터 = Error Prone → **SpotBugs** 로 교체(현업 대중성 기준). 포맷터 Spotless 유지. 빌드 그린 재확인.
+- ✅ **Checkstyle 추가** — SpotBugs 가 못 보는 소스 레벨 관례(네이밍/임포트/구조)를 담당. 룰셋은 커스텀(`config/checkstyle/`): 포맷 규칙은 Spotless 와 충돌하므로 제외, google_checks/sun_checks 는 각각 2-space 강제·과도한 소음 때문에 미채택.
 - ✅ CI = **GitHub Actions `ci.yml`** 추가. main/dev PR·push 검증. 브랜치 보호(직접 푸시 금지·검사 강제·리뷰)는 저장소 설정에서 별도 관리.
 - ✅ 브랜치 전략 = **main(배포) / dev(개발)**. 기능은 dev 에서 분기, 긴급 패치만 main 에서 분기. dev·main 병합은 **PR 필수**. (상세 §10)
 
@@ -222,7 +232,7 @@ InfraStruct/
 
 **CI (`.github/workflows/ci.yml`)**
 - 트리거: `main`/`dev` 로의 PR + 두 브랜치 push.
-- 검사: `spotlessCheck`(포맷) → `./gradlew build`(컴파일 + JUnit + SpotBugs + jar). JDK 21 + Gradle 캐싱 + wrapper 검증.
+- 검사: `spotlessCheck`(포맷) → `./gradlew build`(컴파일 + JUnit + SpotBugs + Checkstyle + jar). JDK 21 + Gradle 캐싱 + wrapper 검증.
 - 필수 검사명(브랜치 보호에 지정): **`build-test-format-lint`**.
 
 **강제(enforcement) — 저장소 설정에서 별도, 파일 아님** 🔶

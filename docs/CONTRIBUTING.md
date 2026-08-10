@@ -2,8 +2,10 @@
 
 이 문서는 **InfraStruct 코어(`framework`)를 개발하는 사람**을 위한 실무 안내서다.
 
-> "**왜** 이렇게 설계했나"는 [`plan.md`](./plan.md) 에 있다. 이 문서는 "**어떻게** 작업하나"에 집중한다.
-> 두 문서가 겹치지 않도록, 설계 배경이 필요하면 이 문서는 `plan.md` 의 해당 절로 링크만 건다.
+> 문서는 셋으로 나뉘고, 서로 겹치지 않게 필요한 절로 링크만 건다.
+> - "**왜** 이렇게 설계했나" → [`plan.md`](./plan.md)
+> - "**어떻게** 작업하나" → 이 문서
+> - "**규칙이 무엇인가**"(네이밍·포맷·import 등) → [`CONVENTIONS.md`](./CONVENTIONS.md)
 
 ---
 
@@ -69,10 +71,12 @@ InfraStruct/
 ├── gradle/  gradlew  ...      # Gradle wrapper (8.10.2)
 ├── docs/
 │   ├── plan.md               # 설계·결정 로그 ("왜")
-│   └── CONTRIBUTING.md        # 이 문서 ("어떻게")
+│   ├── CONTRIBUTING.md       # 이 문서 ("어떻게")
+│   └── CONVENTIONS.md        # 코딩 컨벤션 ("규칙이 무엇인가")
 ├── .github/workflows/ci.yml  # CI (PR 검사)
+├── config/checkstyle/        # Checkstyle 룰셋(checkstyle.xml) + 예외(suppressions.xml)
 └── framework/                # ★ 실제 코드가 사는 모듈
-    ├── build.gradle          # Java 21 + Spotless + SpotBugs + 테스트
+    ├── build.gradle          # Java 21 + Spotless + SpotBugs + Checkstyle + 테스트
     └── src/
         ├── main/java/com/infrastruct/
         │   ├── api/          # 사용자가 import 하는 공개 API
@@ -109,6 +113,7 @@ InfraStruct/
 | 포맷 자동 수정 | `./gradlew spotlessApply` | 코드를 규칙대로 정렬 |
 | 포맷 검사만 | `./gradlew spotlessCheck` | 어긋나면 실패 |
 | 린터 (버그 탐지) | `./gradlew spotbugsMain` | `framework/build/reports/spotbugs/main.html` |
+| 린터 (코드 관례) | `./gradlew checkstyleMain` | `framework/build/reports/checkstyle/main.html` |
 | 테스트 | `./gradlew test` | 커버리지: `framework/build/reports/jacoco/test/html/index.html` |
 | **전체** | `./gradlew build` | 위 전부 포함 (컴파일 + 테스트 + 포맷 + 린터 + jar) |
 
@@ -119,11 +124,22 @@ InfraStruct/
 
 ## 4. 코드 컨벤션
 
+전체 규칙은 **[`CONVENTIONS.md`](./CONVENTIONS.md)** 에 정리돼 있다. 여기서는 매일 필요한 것만 요약한다.
+
 - **포맷은 Spotless 가 강제한다.** 손으로 맞추지 말고 `./gradlew spotlessApply` 를 실행한다.
-  - google-java-format 의 AOSP 변형 = **들여쓰기 4-space**.
-  - 안 쓰는 import 는 자동 삭제된다.
+  - google-java-format 의 AOSP 변형 = **들여쓰기 4-space**, 한 줄 100 컬럼.
+  - 안 쓰는 import 는 자동 삭제되고, import 순서도 자동 정렬된다.
+- **관례는 Checkstyle 이 강제한다.** 이쪽은 **자동 수정이 안 되니** 리포트를 보고 직접 고친다.
+  - 네이밍 (`TypeName`, `methodName`, `CONSTANT_NAME`)
+  - 스타 임포트(`import java.util.*`) 금지, 안 쓰는/중복 import 금지
+  - `if`·`for` 는 한 줄이라도 중괄호 사용, 빈 catch 금지(의도된 무시는 변수명을 `ignored`/`expected` 로)
+  - static 멤버만 있는 유틸 클래스는 private 생성자로 인스턴스화 차단
 - 인코딩 **UTF-8**, 줄바꿈 **LF** (`.editorconfig` · `.gitattributes` 가 강제).
+- 주석·Javadoc 은 **한국어**로, "무엇"보다 **"왜"** 를 적는다.
 - 커밋 전 반드시 `spotlessApply` — 안 하면 CI 의 `spotlessCheck` 에서 막힌다.
+
+> 포맷(②)과 관례(③)의 담당 범위는 겹치지 않는다. Checkstyle 룰셋에 들여쓰기·공백 규칙이 없는 이유는
+> `CONVENTIONS.md` §1 참조.
 
 ---
 
@@ -147,7 +163,7 @@ git push -u origin feature/무슨-기능
 # GitHub 에서 dev 로 PR 생성
 ```
 
-PR 을 올리면 **CI(`build-test-format-lint`)가 자동 실행**된다. 빌드 + 테스트(JUnit) + 포맷(Spotless) + 린터(SpotBugs) 를 모두 통과해야 병합할 수 있다.
+PR 을 올리면 **CI(`build-test-format-lint`)가 자동 실행**된다. 빌드 + 테스트(JUnit) + 포맷(Spotless) + 린터(SpotBugs · Checkstyle) 를 모두 통과해야 병합할 수 있다.
 
 자세한 전략: `plan.md` §10.
 
@@ -165,3 +181,14 @@ PR 을 올리면 **CI(`build-test-format-lint`)가 자동 실행**된다. 빌드
 
 **`spotbugsMain` 이 `NO-SOURCE` 라고 나온다**
 → 정상이다. 아직 분석할 실제 클래스가 없어서다(스캐폴드 단계). 코드를 작성하면 자동으로 분석한다.
+
+**`./gradlew javadoc` 이 `No public or protected classes found to document` 로 실패한다**
+→ 위와 같은 이유다. 현재 `main` 에는 `package-info.java` 밖에 없어 문서화할 공개 클래스가 없다.
+`api`/`spi` 에 실제 공개 타입을 만들면 해결된다. `javadoc` 은 `build` 에 물려 있지 않으므로 CI 는 깨지지 않는다.
+
+**`checkstyleMain` 이 실패한다**
+→ 자동 수정이 안 되니 리포트(`framework/build/reports/checkstyle/main.html`)에서 규칙 이름과 줄 번호를 보고 직접 고친다.
+정말 규칙 쪽이 틀렸다고 판단되면, 규칙을 통째로 끄기 전에 좁게 예외를 준다:
+- 한 곳만 → 코드에 `@SuppressWarnings("checkstyle:RuleName")`
+- 특정 파일/경로 → `config/checkstyle/suppressions.xml` 에 항목 추가(이유를 주석으로 남길 것)
+- 규칙 자체를 바꿔야 한다면 → `config/checkstyle/checkstyle.xml` 수정 + PR 에서 이유 설명

@@ -2,6 +2,7 @@ plugins {
     id 'java-library'
     id 'com.diffplug.spotless' version '6.25.0'   // 포맷터
     id 'com.github.spotbugs' version '6.0.26'     // 린터 (버그 탐지)
+    id 'checkstyle'                                // 린터 (코드 스타일/관례)
     id 'jacoco'                                    // 커버리지
 }
 
@@ -67,6 +68,25 @@ tasks.named('spotbugsMain') {
         xml {
             required = false
         }
+    }
+}
+
+// 린터: Checkstyle — 소스코드에서 스타일/관례 위반을 찾는다. (SpotBugs 는 바이트코드의 '버그', 이쪽은 '관례')
+// checkstyleMain / checkstyleTest 태스크가 만들어지고, check/build 에 자동으로 포함된다.
+// 실행: ./gradlew checkstyleMain  (리포트: build/reports/checkstyle/main.html)
+checkstyle {
+    toolVersion = '10.20.1'
+    // 룰셋은 레포 루트에 둔다 → 모듈이 늘어나도 같은 규칙을 공유한다.
+    configDirectory = rootProject.layout.projectDirectory.dir('config/checkstyle')
+    // 경고도 실패로 취급. 룰셋의 severity 가 error 라 사실상 보험이지만, 규칙을 하나씩 완화하다
+    // "경고만 잔뜩 쌓이고 아무도 안 보는" 상태로 흘러가는 걸 막는다.
+    maxWarnings = 0
+}
+
+tasks.withType(Checkstyle).configureEach {
+    reports {
+        html.required = true    // 사람이 읽기 좋은 HTML 리포트
+        xml.required = false
     }
 }
 
