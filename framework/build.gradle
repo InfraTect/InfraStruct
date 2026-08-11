@@ -33,6 +33,10 @@ dependencies {
     // 상태 직렬화용 JSON.
     implementation 'com.google.code.gson:gson:2.11.0'
 
+    // SpotBugs 억제용 어노테이션(@SuppressFBWarnings). CLASS 리텐션이라 런타임엔 불필요 →
+    // compileOnly. SpotBugs 버전과 맞춘다.
+    compileOnly 'com.github.spotbugs:spotbugs-annotations:4.8.6'
+
     // 테스트
     testImplementation platform('org.junit:junit-bom:5.11.3')
     testImplementation 'org.junit.jupiter:junit-jupiter'
