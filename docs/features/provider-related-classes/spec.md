@@ -13,7 +13,7 @@
 - ProviderResource 는 하위에서 kind/provider 필드를 설정하고 읽을 수 있다
 - @Resource 는 RUNTIME/TYPE 이며 name() 값을 리플렉션으로 읽을 수 있다
 - @Required 는 RUNTIME 이며 FIELD 에 붙고 리플렉션으로 읽을 수 있다
-- @RegisterProvider 는 RUNTIME/TYPE 이며 providerId/resourceScanner/applier 를 리플렉션으로 읽을 수 있다
+- @RegisterProvider 는 RUNTIME/TYPE 이며 providerId/validator/applier 를 리플렉션으로 읽을 수 있다
 
 ## 공개 인터페이스 시그니처 (확정)
 
@@ -37,7 +37,7 @@ public abstract class ProviderResource {
 @Target(ElementType.TYPE)
 public @interface RegisterProvider {
     String providerId();
-    Class<?> resourceScanner();   // TODO: Class<? extends ResourceScanner> (타입 생기면 좁힘)
+    Class<?> validator();   // TODO: Class<? extends Validator> (타입 생기면 좁힘)
     Class<?> applier();           // TODO: Class<? extends Applier>
 }
 

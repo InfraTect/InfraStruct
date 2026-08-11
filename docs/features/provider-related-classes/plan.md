@@ -50,12 +50,14 @@ public abstract class ProviderResource {
 @Target(TYPE)
 public @interface RegisterProvider {
     String providerId();
-    Class<?> resourceScanner();   // TODO: Class<? extends ResourceScanner>
+    Class<?> validator();         // TODO: Class<? extends Validator>
     Class<?> applier();           // TODO: Class<? extends Applier>
 }
 ```
 - RUNTIME/TYPE: ModuleRegistry 가 프로바이더 토큰에서 리플렉션으로 읽는다.
-- `resourceScanner`/`applier` 의 정확한 상한 타입은 §4 에서 결정.
+- `validator`/`applier` 의 정확한 상한 타입은 §4 에서 결정.
+- (정정) 초기엔 `resourceScanner` 로 적었으나, 다이어그램 "새 프로바이더 추가" 노트대로
+  `@RegisterProvider` 는 **validator·applier** 를 저장하는 게 맞다 → `validator` 로 수정.
 
 ### `@Resource`
 ```java
@@ -84,16 +86,16 @@ public @interface Required {}   // 마커
 
 ## 4. ⚠️ 핵심 논점: `@RegisterProvider` 의 미구현 의존성
 
-`@RegisterProvider` 는 `resourceScanner(): Class<? extends ResourceScanner>` 와
-`applier(): Class<? extends Applier>` 를 갖는다. 그런데 `ResourceScanner`·`Applier` 는
+`@RegisterProvider` 는 `validator(): Class<? extends Validator>` 와
+`applier(): Class<? extends Applier>` 를 갖는다. 그런데 `Validator`·`Applier` 는
 **아직 없다** (이 브랜치 밖). 게다가 그 인터페이스들은 다시 `ScannedResources`,
 `OrderedResourceChangeSet`, `CurrentResources` 같은 **또 다른 미구현 타입**에 의존한다
 (연쇄 의존). 따라서 지금 제대로 만들려면 미구현 타입이 줄줄이 필요하다.
 
-**결정: (A) `Class<?>` + TODO.** 상한 없이 받아두고, `ResourceScanner`/`Applier` 가 생기면
-`Class<? extends ResourceScanner>` / `Class<? extends Applier>` 로 좁힌다.
+**결정: (A) `Class<?>` + TODO.** 상한 없이 받아두고, `Validator`/`Applier` 가 생기면
+`Class<? extends Validator>` / `Class<? extends Applier>` 로 좁힌다.
 
-- 이유: 이 브랜치가 **자기완결적**이어야 한다. 남이 소유한 타입(ResourceScanner/Applier)을
+- 이유: 이 브랜치가 **자기완결적**이어야 한다. 남이 소유한 타입(Validator/Applier)을
   여기서 만들면 병합 충돌이 나고, 연쇄 의존 때문에 어차피 빈 껍데기밖에 못 만든다.
 - InfraStruct feature 와 동일한 원칙("아직 없는 타입은 참조하지 않는다").
 - 프로바이더 코드가 아직 없으므로, 나중에 상한을 좁혀도 깨질 사용처가 없다.

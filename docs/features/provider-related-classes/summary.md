@@ -23,15 +23,17 @@
 - `ProviderResource` : `public Kind kind`, `public Class<? extends Provider> provider`.
 - `@Resource(String name)` : RUNTIME/TYPE — 사용자 자원 클래스에.
 - `@Required` : RUNTIME/FIELD 마커 — 필수 필드에.
-- `@RegisterProvider(String providerId, Class<?> resourceScanner, Class<?> applier)` : RUNTIME/TYPE.
+- `@RegisterProvider(String providerId, Class<?> validator, Class<?> applier)` : RUNTIME/TYPE.
 
 ## 왜 이렇게 했나 (핵심)
 
 - **패키지**: 프로바이더가 쥐는 것(Kind/Provider/ProviderResource/@RegisterProvider/@Required)은
   spi, 최종 사용자가 쥐는 `@Resource` 는 api.
-- **`@RegisterProvider` 의 `resourceScanner`/`applier` 는 `Class<?>`**: 대상 타입
-  `ResourceScanner`/`Applier` 가 아직 없고(다른 브랜치) 연쇄 의존까지 있어, 지금 상한을 걸 수 없다.
+- **`@RegisterProvider` 의 `validator`/`applier` 는 `Class<?>`**: 대상 타입
+  `Validator`/`Applier` 가 아직 없고(다른 브랜치) 연쇄 의존까지 있어, 지금 상한을 걸 수 없다.
   타입이 생기면 `Class<? extends ...>` 로 좁힌다(각 속성에 TODO 주석).
+  - (정정) 초기엔 `resourceScanner` 로 잘못 넣었으나, 다이어그램 "새 프로바이더 추가" 노트대로
+    `@RegisterProvider` 는 **validator·applier** 를 저장하는 게 맞다 → `validator` 로 수정.
 - **`@Required` 는 spi**: 주로 프로바이더가 자원 템플릿 필드에 붙인다.
 
 ## SpotBugs 오탐 처리 (국소 예외 — 정책 아님)
@@ -45,5 +47,5 @@
 
 ## 다음(이 브랜치 밖)
 
-- `ResourceScanner`/`Applier` 가 생기면 `@RegisterProvider` 의 두 속성 상한을 좁힌다.
+- `Validator`/`Applier` 가 생기면 `@RegisterProvider` 의 두 속성 상한을 좁힌다.
 - 실제 프로바이더 구현(Aws, AwsKind, AwsEc2 …)은 프로바이더 레포/브랜치 몫.
