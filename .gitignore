@@ -3,6 +3,7 @@ build/
 .idea/
 *.iml
 out/
+.geonwoo/
 
 # InfraStruct 가 실행 중에 만들어내는 상태 파일
 # infras.state.json
