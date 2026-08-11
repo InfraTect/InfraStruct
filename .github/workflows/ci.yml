@@ -44,6 +44,6 @@ jobs:
       - name: Format check (Spotless)
         run: ./gradlew spotlessCheck
 
-      # ⑤ 빌드 + 테스트(JUnit) + 린터(SpotBugs) 를 한 번에. ('build' 가 셋 다 포함)
+      # ⑤ 빌드 + 테스트(JUnit) + 린터(SpotBugs·Checkstyle) 를 한 번에. ('build' 가 전부 포함)
       - name: Build, test & lint
         run: ./gradlew build
