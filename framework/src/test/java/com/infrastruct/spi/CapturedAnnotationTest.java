@@ -1,8 +1,7 @@
-package com.infrastruct.internal;
+package com.infrastruct.spi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.infrastruct.spi.BehaviorHandler;
 import java.lang.annotation.Annotation;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -22,7 +21,7 @@ class CapturedAnnotationTest {
     /** 픽스처: 담을 핸들러 클래스. */
     static class FixtureHandler implements BehaviorHandler<Annotation> {
         @Override
-        public void handle(Annotation annotation, Object state) {}
+        public void handle(Annotation annotation, ScannedResourceState state) {}
     }
 
     @Test

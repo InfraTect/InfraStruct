@@ -20,12 +20,20 @@ class BehaviorHandlerTest {
     /** 픽스처: 넘어온 값을 기록하는 핸들러 구현체. */
     static class RecordingHandler implements BehaviorHandler<FixtureAnno> {
         FixtureAnno received;
-        Object receivedState;
+        ScannedResourceState receivedState;
 
         @Override
-        public void handle(FixtureAnno annotation, Object state) {
+        public void handle(FixtureAnno annotation, ScannedResourceState state) {
             this.received = annotation;
             this.receivedState = state;
+        }
+    }
+
+    /** 픽스처: 넘어온 상태를 실제로 고치는 핸들러 구현체. */
+    static class MutatingHandler implements BehaviorHandler<FixtureAnno> {
+        @Override
+        public void handle(FixtureAnno annotation, ScannedResourceState state) {
+            state.getConfig().put("allowSsh", true);
         }
     }
 
@@ -33,11 +41,22 @@ class BehaviorHandlerTest {
     void implementationHandlesAnnotationAndState() {
         RecordingHandler handler = new RecordingHandler();
         FixtureAnno anno = Holder.class.getAnnotation(FixtureAnno.class);
-        Object state = new Object();
+        ScannedResourceState state = new ScannedResourceState();
 
         handler.handle(anno, state);
 
         assertThat(handler.received).isSameAs(anno);
         assertThat(handler.receivedState).isSameAs(state);
+    }
+
+    @Test
+    void handlerMutatesGivenState() {
+        MutatingHandler handler = new MutatingHandler();
+        FixtureAnno anno = Holder.class.getAnnotation(FixtureAnno.class);
+        ScannedResourceState state = new ScannedResourceState();
+
+        handler.handle(anno, state);
+
+        assertThat(state.getConfig()).containsEntry("allowSsh", true);
     }
 }

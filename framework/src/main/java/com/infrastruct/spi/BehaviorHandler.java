@@ -15,11 +15,12 @@ public interface BehaviorHandler<T extends Annotation> {
     /**
      * 어노테이션의 효과를 자원 상태에 반영한다.
      *
-     * <p>{@code state} 의 타입이 {@link Object} 인 이유: 원래는 {@code ScannedResourceState} 이지만 그 타입이 아직 다른
-     * 영역에서 구현 중이라 참조할 수 없다. 타입이 생기면 {@code ScannedResourceState} 로 좁힌다.
+     * <p>반환값이 없다 — 넘겨받은 {@code state} 를 <b>직접 고쳐서</b> 효과를 반영한다. 예를 들어 {@code @AllowSSH} 핸들러라면
+     * {@code state.getConfig()} 에 인바운드 규칙을 넣는다. 그래서 {@link ScannedResourceState} 의 컬렉션 접근자는 방어 복사를
+     * 하지 않는다.
      *
      * @param annotation 처리할 어노테이션 인스턴스
-     * @param state 반영 대상 자원 상태 (임시로 {@code Object})
+     * @param state 반영 대상 자원 상태
      */
-    void handle(T annotation, Object state);
+    void handle(T annotation, ScannedResourceState state);
 }
