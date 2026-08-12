@@ -11,7 +11,6 @@ import com.infrastruct.spi.DesiredResources;
 import com.infrastruct.spi.FieldDiff;
 import com.infrastruct.spi.Kind;
 import com.infrastruct.spi.ResourceChange;
-import com.infrastruct.spi.ResourceChangeSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;

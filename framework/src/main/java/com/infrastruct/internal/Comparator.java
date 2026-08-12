@@ -8,7 +8,6 @@ import com.infrastruct.spi.DesiredResourceState;
 import com.infrastruct.spi.DesiredResources;
 import com.infrastruct.spi.FieldDiff;
 import com.infrastruct.spi.ResourceChange;
-import com.infrastruct.spi.ResourceChangeSet;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
