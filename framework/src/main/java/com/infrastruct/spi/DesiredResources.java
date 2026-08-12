@@ -2,9 +2,20 @@ package com.infrastruct.spi;
 
 import java.util.List;
 
-/** <b>임시 스켈레톤</b>: 자원 상태관리 담당(선현진)이 실제 구현으로 교체할 예정. */
+/**
+ * 사용자가 원하는 최종 상태 전체. DesiredStateCreator 가 만들고, Validator 의 검증 대상이 된다.
+ *
+ * <p>record 인 이유는 {@link ScannedResources} 참조.
+ *
+ * @param resources 원하는 자원 상태 목록
+ */
 public record DesiredResources(List<DesiredResourceState> resources) {
 
+    /**
+     * 넘어온 목록을 불변으로 복사한다.
+     *
+     * @throws NullPointerException {@code resources} 가 {@code null} 이거나 원소에 {@code null} 이 섞인 경우
+     */
     public DesiredResources {
         resources = List.copyOf(resources);
     }
