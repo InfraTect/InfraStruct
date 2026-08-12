@@ -111,7 +111,10 @@ public final class Comparator {
             List<T> states, java.util.function.Function<T, String> logicalIdOf) {
         Map<String, T> byLogicalId = new LinkedHashMap<>();
         for (T state : states) {
-            byLogicalId.put(logicalIdOf.apply(state), state);
+            String logicalId = Objects.requireNonNull(logicalIdOf.apply(state), "logicalId");
+            if (byLogicalId.putIfAbsent(logicalId, state) != null) {
+                throw new IllegalArgumentException("중복된 logicalId: " + logicalId);
+            }
         }
         return byLogicalId;
     }

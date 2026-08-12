@@ -21,5 +21,33 @@ public record ResourceChange(
         Objects.requireNonNull(type, "type");
         fieldDiffs = List.copyOf(fieldDiffs);
         dependencyDiffs = List.copyOf(dependencyDiffs);
+
+        switch (type) {
+            case CREATE -> {
+                if (before != null) {
+                    throw new IllegalArgumentException("CREATE는 before가 null이어야 한다");
+                }
+                Objects.requireNonNull(after, "after");
+                requireNoDiffs(fieldDiffs, dependencyDiffs, type);
+            }
+            case DELETE -> {
+                Objects.requireNonNull(before, "before");
+                if (after != null) {
+                    throw new IllegalArgumentException("DELETE는 after가 null이어야 한다");
+                }
+                requireNoDiffs(fieldDiffs, dependencyDiffs, type);
+            }
+            case UPDATE -> {
+                Objects.requireNonNull(before, "before");
+                Objects.requireNonNull(after, "after");
+            }
+        }
+    }
+
+    private static void requireNoDiffs(
+            List<FieldDiff> fieldDiffs, List<DependencyDiff> dependencyDiffs, ChangeType type) {
+        if (!fieldDiffs.isEmpty() || !dependencyDiffs.isEmpty()) {
+            throw new IllegalArgumentException(type + "는 fieldDiffs/dependencyDiffs가 비어 있어야 한다");
+        }
     }
 }

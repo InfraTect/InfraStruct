@@ -1,6 +1,8 @@
 package com.infrastruct.internal;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
+import static org.assertj.core.api.Assertions.assertThatNullPointerException;
 
 import com.infrastruct.spi.ChangeType;
 import com.infrastruct.spi.CurrentResourceState;
@@ -159,6 +161,33 @@ class ComparatorTest {
         assertThat(result.diffs())
                 .extracting(ResourceChange::type)
                 .containsExactlyInAnyOrder(ChangeType.CREATE, ChangeType.UPDATE, ChangeType.DELETE);
+    }
+
+    @Test
+    void duplicateLogicalIdInDesiredThrows() {
+        DesiredResourceState first =
+                desired("vpc.myVpc", Map.of("cidrBlock", "10.0.0.0/16"), List.of());
+        DesiredResourceState duplicate =
+                desired("vpc.myVpc", Map.of("cidrBlock", "10.0.1.0/16"), List.of());
+
+        assertThatIllegalArgumentException()
+                .isThrownBy(
+                        () ->
+                                comparator.compare(
+                                        new DesiredResources(List.of(first, duplicate)),
+                                        new CurrentResources(List.of())));
+    }
+
+    @Test
+    void nullLogicalIdInCurrentThrows() {
+        CurrentResourceState current = current(null, Map.of(), List.of(), "vpc-1");
+
+        assertThatNullPointerException()
+                .isThrownBy(
+                        () ->
+                                comparator.compare(
+                                        new DesiredResources(List.of()),
+                                        new CurrentResources(List.of(current))));
     }
 
     private static DesiredResourceState desired(
