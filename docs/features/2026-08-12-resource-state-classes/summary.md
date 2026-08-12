@@ -47,9 +47,9 @@ public class CurrentResourceState extends ResourceState {
     public void setPhysicalId(String physicalId);
 }
 
-public record ScannedResources(List<ScannedResourceState> scannedResources) { /* null 정규화 + 불변 복사 */ }
-public record DesiredResources(List<DesiredResourceState> desiredResources) { /* 〃 */ }
-public record CurrentResources(List<CurrentResourceState> currentResources) { /* 〃 */ }
+public record ScannedResources(List<ScannedResourceState> resources) { /* null 정규화 + 불변 복사 */ }
+public record DesiredResources(List<DesiredResourceState> resources) { /* 〃 */ }
+public record CurrentResources(List<CurrentResourceState> resources) { /* 〃 */ }
 ```
 
 ## 왜 이렇게 했나 (핵심)

@@ -13,16 +13,16 @@ class CurrentResourcesTest {
     void holdsCurrentResourceStates() {
         CurrentResourceState state = new CurrentResourceState();
 
-        CurrentResources resources = new CurrentResources(List.of(state));
+        CurrentResources current = new CurrentResources(List.of(state));
 
-        assertThat(resources.currentResources()).containsExactly(state);
+        assertThat(current.resources()).containsExactly(state);
     }
 
     @Test
     void normalizesNullListToEmpty() {
-        CurrentResources resources = new CurrentResources(null);
+        CurrentResources current = new CurrentResources(null);
 
-        assertThat(resources.currentResources()).isEmpty();
+        assertThat(current.resources()).isEmpty();
     }
 
     @Test
@@ -30,9 +30,9 @@ class CurrentResourcesTest {
         List<CurrentResourceState> given = new ArrayList<>();
         given.add(new CurrentResourceState());
 
-        CurrentResources resources = new CurrentResources(given);
+        CurrentResources current = new CurrentResources(given);
         given.clear();
 
-        assertThat(resources.currentResources()).hasSize(1);
+        assertThat(current.resources()).hasSize(1);
     }
 }

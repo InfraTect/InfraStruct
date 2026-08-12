@@ -54,13 +54,13 @@ public class CurrentResourceState extends ResourceState {
 }
 
 // 컨테이너 3종은 compact 생성자에서 null 정규화 + 불변 복사를 한다.
-public record ScannedResources(List<ScannedResourceState> scannedResources) {
+public record ScannedResources(List<ScannedResourceState> resources) {
     public ScannedResources {
-        scannedResources = scannedResources == null ? List.of() : List.copyOf(scannedResources);
+        resources = resources == null ? List.of() : List.copyOf(resources);
     }
 }
-public record DesiredResources(List<DesiredResourceState> desiredResources) { /* 〃 */ }
-public record CurrentResources(List<CurrentResourceState> currentResources) { /* 〃 */ }
+public record DesiredResources(List<DesiredResourceState> resources) { /* 〃 */ }
+public record CurrentResources(List<CurrentResourceState> resources) { /* 〃 */ }
 ```
 
 ### 이번에 함께 바뀌는 기존 코드

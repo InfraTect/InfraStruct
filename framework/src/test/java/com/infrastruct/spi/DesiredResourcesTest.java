@@ -13,16 +13,16 @@ class DesiredResourcesTest {
     void holdsDesiredResourceStates() {
         DesiredResourceState state = new DesiredResourceState();
 
-        DesiredResources resources = new DesiredResources(List.of(state));
+        DesiredResources desired = new DesiredResources(List.of(state));
 
-        assertThat(resources.desiredResources()).containsExactly(state);
+        assertThat(desired.resources()).containsExactly(state);
     }
 
     @Test
     void normalizesNullListToEmpty() {
-        DesiredResources resources = new DesiredResources(null);
+        DesiredResources desired = new DesiredResources(null);
 
-        assertThat(resources.desiredResources()).isEmpty();
+        assertThat(desired.resources()).isEmpty();
     }
 
     @Test
@@ -30,9 +30,9 @@ class DesiredResourcesTest {
         List<DesiredResourceState> given = new ArrayList<>();
         given.add(new DesiredResourceState());
 
-        DesiredResources resources = new DesiredResources(given);
+        DesiredResources desired = new DesiredResources(given);
         given.clear();
 
-        assertThat(resources.desiredResources()).hasSize(1);
+        assertThat(desired.resources()).hasSize(1);
     }
 }

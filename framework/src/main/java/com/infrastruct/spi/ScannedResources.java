@@ -8,9 +8,9 @@ import java.util.List;
  * <p>record 인 이유: 파이프라인은 컨테이너를 <b>바꿔 끼우지 덧붙이지 않는다</b>. 각 단계가 새 컨테이너를 만들어 다음 단계로 넘기므로 컨테이너 자체는 불변이어도
  * 된다. (안에 든 {@link ScannedResourceState} 는 가변이다 — 근거는 {@link ResourceState#getConfig()}.)
  *
- * @param scannedResources 스캔된 자원 상태 목록
+ * @param resources 스캔된 자원 상태 목록
  */
-public record ScannedResources(List<ScannedResourceState> scannedResources) {
+public record ScannedResources(List<ScannedResourceState> resources) {
 
     /**
      * 넘어온 목록을 불변으로 복사한다.
@@ -19,6 +19,6 @@ public record ScannedResources(List<ScannedResourceState> scannedResources) {
      * 뒤 엉뚱한 곳에서 NPE 가 난다.
      */
     public ScannedResources {
-        scannedResources = scannedResources == null ? List.of() : List.copyOf(scannedResources);
+        resources = resources == null ? List.of() : List.copyOf(resources);
     }
 }

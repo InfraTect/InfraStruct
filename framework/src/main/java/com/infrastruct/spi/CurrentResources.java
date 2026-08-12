@@ -7,12 +7,12 @@ import java.util.List;
  *
  * <p>record 인 이유는 {@link ScannedResources} 참조.
  *
- * @param currentResources 현재 자원 상태 목록
+ * @param resources 현재 자원 상태 목록
  */
-public record CurrentResources(List<CurrentResourceState> currentResources) {
+public record CurrentResources(List<CurrentResourceState> resources) {
 
     /** 넘어온 목록을 불변으로 복사한다. 근거는 {@link ScannedResources#ScannedResources(List)}. */
     public CurrentResources {
-        currentResources = currentResources == null ? List.of() : List.copyOf(currentResources);
+        resources = resources == null ? List.of() : List.copyOf(resources);
     }
 }

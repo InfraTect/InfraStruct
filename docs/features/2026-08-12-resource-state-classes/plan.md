@@ -82,9 +82,9 @@ public class CurrentResourceState extends ResourceState {
 ### 컨테이너 3개 — `record` 로 만든다
 
 ```java
-public record ScannedResources(List<ScannedResourceState> scannedResources) {}
-public record DesiredResources(List<DesiredResourceState> desiredResources) {}
-public record CurrentResources(List<CurrentResourceState> currentResources) {}
+public record ScannedResources(List<ScannedResourceState> resources) {}
+public record DesiredResources(List<DesiredResourceState> resources) {}
+public record CurrentResources(List<CurrentResourceState> resources) {}
 ```
 
 - **상태 4개는 상속 계층이라 record 를 못 쓰지만, 컨테이너 3개는 상속이 없어 record 가 된다.**
@@ -93,6 +93,11 @@ public record CurrentResources(List<CurrentResourceState> currentResources) {}
   `CurrentResources` 를 반환하고, Comparator 는 읽기만 한다. 그래서 불변으로 둬도 된다.
 - ⚠️ 다이어그램의 필드명은 `ScannedResources` 처럼 대문자로 시작하는데, Checkstyle
   네이밍 규칙(lowerCamel) 위반이라 빌드가 깨진다. 위처럼 소문자로 시작한다.
+- **컴포넌트명은 타입 이름을 되풀이하지 않고 셋 다 `resources` 로 둔다.** 다이어그램이 필드를
+  타입 이름 그대로 적어 뒀을 뿐 접두사에 의미가 있는 것은 아니다. ① 멤버는 자기를 담은 타입
+  이름을 반복하지 않는다 (`Map.Entry.getKey()` 이지 `getEntryKey()` 가 아니다). ② record 라
+  **컴포넌트명이 그대로 상태 파일의 JSON 키가 된다** — `CurrentStateStore` 가 쓰는 wire
+  format 은 한 번 박히면 되돌리기 어려우므로 `{"resources": [...]}` 쪽이 낫다.
 - Gson 은 2.10 부터 record 를 지원한다. 현재 `build.gradle` 은 2.11.0 이라 문제없다.
 
 ### 가변성 — 상태 4개는 **가변**이어야 한다 (도출된 제약)

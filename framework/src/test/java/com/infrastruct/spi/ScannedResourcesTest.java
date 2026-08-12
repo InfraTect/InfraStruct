@@ -13,16 +13,16 @@ class ScannedResourcesTest {
     void holdsScannedResourceStates() {
         ScannedResourceState state = new ScannedResourceState();
 
-        ScannedResources resources = new ScannedResources(List.of(state));
+        ScannedResources scanned = new ScannedResources(List.of(state));
 
-        assertThat(resources.scannedResources()).containsExactly(state);
+        assertThat(scanned.resources()).containsExactly(state);
     }
 
     @Test
     void normalizesNullListToEmpty() {
-        ScannedResources resources = new ScannedResources(null);
+        ScannedResources scanned = new ScannedResources(null);
 
-        assertThat(resources.scannedResources()).isEmpty();
+        assertThat(scanned.resources()).isEmpty();
     }
 
     @Test
@@ -30,9 +30,9 @@ class ScannedResourcesTest {
         List<ScannedResourceState> given = new ArrayList<>();
         given.add(new ScannedResourceState());
 
-        ScannedResources resources = new ScannedResources(given);
+        ScannedResources scanned = new ScannedResources(given);
         given.clear();
 
-        assertThat(resources.scannedResources()).hasSize(1);
+        assertThat(scanned.resources()).hasSize(1);
     }
 }
