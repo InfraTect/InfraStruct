@@ -34,19 +34,19 @@ public final class PlanCreator {
      * @return 실행 순서로 정렬된 변경 목록
      */
     public OrderedResourceChangeSet createPlan(ResourceChangeSet changeSet) {
-        Objects.requireNonNull(changeSet, "changeSet");     //예외 처리
+        Objects.requireNonNull(changeSet, "changeSet"); // 예외 처리
         Map<String, ResourceChange> changesById = indexByLogicalId(changeSet.diffs());
 
         List<ResourceChange> upserts =
                 changesById.values().stream()
-                        .filter(change -> change.type() != ChangeType.DELETE)   //DELETE제외하기
+                        .filter(change -> change.type() != ChangeType.DELETE) // DELETE제외하기
                         .toList();
         List<ResourceChange> deletes =
                 changesById.values().stream()
-                        .filter(change -> change.type() == ChangeType.DELETE)   //DELETE만 포함하기
+                        .filter(change -> change.type() == ChangeType.DELETE) // DELETE만 포함하기
                         .toList();
 
-        List<ResourceChange> ordered = new ArrayList<>(changeSet.diffs().size());   //변경 목록 확보
+        List<ResourceChange> ordered = new ArrayList<>(changeSet.diffs().size()); // 변경 목록 확보
         ordered.addAll(topologicalSort(upserts, change -> change.after().dependencies(), false));
         ordered.addAll(topologicalSort(deletes, change -> change.before().dependencies(), true));
         return new OrderedResourceChangeSet(ordered);
@@ -90,7 +90,7 @@ public final class PlanCreator {
         Map<String, ResourceChange> changesById = new LinkedHashMap<>();
         for (ResourceChange change : changes) {
             String logicalId = logicalId(change);
-            if (changesById.putIfAbsent(logicalId, change) != null) {   //중복 logicalId 차단
+            if (changesById.putIfAbsent(logicalId, change) != null) { // 중복 logicalId 차단
                 throw new IllegalArgumentException("중복된 logicalId: " + logicalId);
             }
         }
