@@ -47,5 +47,7 @@
 
 ## 다음(이 브랜치 밖)
 
-- `Validator`/`Applier` 가 생기면 `@RegisterProvider` 의 두 속성 상한을 좁힌다.
+- ~~`Validator`/`Applier` 가 생기면 `@RegisterProvider` 의 두 속성 상한을 좁힌다.~~
+  → `applier()` 는 ✅ 해결 (`feat/impl-applier-interface`): `Class<? extends Applier>` 로 좁힘.
+  `validator()` 는 `Validator` 타입이 아직 없어 여전히 `Class<?>` (대기).
 - 실제 프로바이더 구현(Aws, AwsKind, AwsEc2 …)은 프로바이더 레포/브랜치 몫.
