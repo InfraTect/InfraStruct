@@ -74,7 +74,7 @@ DesiredStateCreator 를 쓰는 사람이 정하는 편이 맞다.
 | **ResourceScanner** — 이 7종을 리플렉션으로 채운다 (ClassGraph) | 08-14 ~ 08-21 |
 | `CurrentStateStore` 의 `TypeAdapter<Kind>` + **불변 상태의 Gson 역직렬화 대응** | 08-14 전 공유 필요 |
 | `DesiredStateCreator` — `capturedAnnotations` 소비 + `handle` 시그니처 확정 | |
-| `RegisterProvider.validator()` / `applier()` 자리표시자 좁히기 | 각자 작업 후 |
+| ~~`RegisterProvider.applier()`~~ 좁히기 → ✅ `feat/impl-applier-interface` 완료 / `validator()` 는 대기 | 각자 작업 후 |
 
 ### ⚠️ CurrentStateStore 를 맡는 쪽에 먼저 전달할 것
 
