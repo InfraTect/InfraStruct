@@ -277,39 +277,14 @@ public class ResourceScanException extends RuntimeException { ... }
 ## 10. Test fixture 설계
 
 framework 는 프로바이더를 의존하지 않으므로 `AwsVpc` 같은 것을 쓸 수 없다. test 전용 자원 계층을
-직접 만든다. **쓸 수 없다는 것이 아니라 쓰지 않아도 된다는 것 자체가 이 설계의 주장**이다.
+`framework/src/test/java/com/infrastruct/fixture/scan/` 아래에 직접 만든다. **쓸 수 없다는 것이
+아니라 쓰지 않아도 된다는 것 자체가 이 설계의 주장**이다.
 
-`framework/src/test/java/com/infrastruct/fixture/scan/` 아래:
+원칙 하나만 여기 둔다. 깨진 자원은 **사유마다 다른 package 로 격리한다.** 한 package 에 모아 두면
+하나를 스캔할 때 다른 것도 같이 걸려서 어느 검증이 예외를 냈는지 구분할 수 없다.
 
-```
-scan/
-├── ScanKind.java        enum ScanKind implements Kind { Vpc, Subnet, Ec2, Rds }
-├── ScanProvider.java    class ScanProvider extends Provider {}
-├── ScanResource.java    ProviderResource 상속. provider 설정 + 조부모 필드 검증용 owner 필드
-├── ScanVpc / ScanSubnet / ScanEc2    단일 참조와 스칼라 필드
-├── ScanRds.java         List<Class<? extends ScanSubnet>> 컬렉션 참조 (§5)
-├── Tagged.java          @Behavior 달린 매크로 annotation (멤버 있음)
-├── Encrypted.java       @Behavior 달린 매크로 annotation (멤버 없음)
-├── Plain.java           @Behavior 없는 평범한 annotation. 포착되면 안 됨
-├── TagHandler / EncryptHandler       BehaviorHandler 구현
-├── good/                정상 자원. 대부분의 test 가 이 package 만 스캔
-└── bad/                 깨진 자원. 하위 package 로 하나씩 격리
-    ├── blank/           name 이 빈 문자열
-    ├── whitespace/      name 이 공백뿐
-    ├── inner/           name 중간에 공백
-    ├── noctor/          인자 없는 생성자 없음
-    ├── notprovider/     ProviderResource 미상속
-    ├── nokind/          kind 를 안 채움
-    └── dup/             logicalId 중복 (클래스 2개)
-```
-
-깨진 자원을 **하나씩 다른 package 로 격리**하는 것이 핵심이다. 한 package 에 모아 두면 하나를
-스캔할 때 다른 것도 같이 걸려서 어느 검증이 예외를 냈는지 구분할 수 없다.
-
-`Plain` annotation 을 두는 이유는 "`@Behavior` 가 달린 것만 포착한다"를 반증 가능하게 만들기
-위해서다. 매크로 annotation 만 있으면 전부 포착하는 구현도 test 를 통과해 버린다.
-
-`ScanRds` 는 컬렉션 참조 지원의 반증 장치다. 없으면 단일 참조만 처리하는 구현이 그냥 통과한다.
+클래스 목록과 각 fixture 가 무엇을 반증하는지는 `spec.md` 「Test fixture」에 있다. 실제로 돌려 본
+코드는 `resource-scanner-wip` (`d609a97`) 에 있다.
 
 ## 11. 구현 순서 (red → green)
 

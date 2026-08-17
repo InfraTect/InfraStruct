@@ -17,35 +17,60 @@
 
 ## 다음 PR 로 넘기는 행동
 
-`plan.md` §1-1 의 분할을 따른다. 아래는 지금 등록하지 않는다.
+`plan.md` §1-1 의 분할을 따른다. 아래는 지금 등록하지 않는다. 각 항목에 **어떻게 확인하는지**를
+함께 적어 뒀으므로 그 PR 의 spec 은 여기서 잘라 가면 된다. 하네스가 `- ` 불릿을 행동으로 자동
+등록하므로 여기서는 일부러 번호 목록을 쓴다.
+
+기대값은 위 fixture 표에서 온다. `GOOD` 은 `"com.infrastruct.fixture.scan.good"` 상수로 둔다.
 
 ### 2번 PR — 발견과 검증
 
-1. scan() 은 @Resource 가 붙은 클래스를 모두 찾고 logicalId 는 name() 값 그대로다
-2. basePackage 밖의 자원은 스캔하지 않는다
-3. 결과 자원의 순서가 클래스 이름순으로 고정된다
-4. kind 를 ProviderResource 필드에서 읽는다
-5. name 이 비었거나 공백뿐이면 ResourceScanException 을 던진다
-6. name 중간에 공백이 있으면 ResourceScanException 을 던진다
-7. logicalId 가 다른 클래스와 중복되면 ResourceScanException 을 던지고 두 클래스를 모두 알린다
-8. ProviderResource 를 상속하지 않은 자원이면 ResourceScanException 을 던진다
-9. 인스턴스화 후에도 kind 가 null 이면 ResourceScanException 을 던진다
-10. 인자 없는 생성자가 없으면 ResourceScanException 을 던지고 원인 예외를 cause 로 붙인다
+1. **자원 발견과 logicalId** — `@Resource` 가 붙은 클래스를 모두 찾고 logicalId 는 `name()` 값
+   그대로다. `good` 만 스캔했을 때 `resources()` 크기가 5 이고 logicalId 집합이
+   `{alphaVpc, betaSubnet, gammaEc2, deltaRds, epsilonSubnet}` 이다.
+2. **basePackage 격리** — 범위 밖의 자원은 스캔하지 않는다. `good` 만 스캔하면 `bad` 의 깨진
+   자원이 걸리지 않아 예외가 나지 않는다. 이것이 성립해야 아래 에러 test 들이 서로를 오염시키지 않는다.
+3. **순서 고정** — 결과 순서가 클래스 이름순이다. logicalId 를 순서대로 뽑은 리스트가 클래스 FQCN
+   을 정렬한 순서와 일치한다. 상수로 박지 말고 fixture 클래스 이름에서 기대값을 계산해 비교한다.
+4. **kind** — `ProviderResource` 필드에서 읽는다. `alphaVpc` 의 `kind()` 가 `ScanKind.Vpc` 와
+   `assertSame` 이다. 나머지도 각각 확인한다.
+5. **에러 6종** — 각 `bad/*` package 를 basePackage 로 스캔하면 `ResourceScanException` 이 난다
+   (빈 name, 공백뿐인 name, 중간 공백, `ProviderResource` 미상속, `kind` null, 생성자 없음).
+   `assertThatThrownBy(...).isInstanceOf(ResourceScanException.class).hasMessageContaining(FQCN)`
+   형태로, 메시지에 문제 클래스의 FQCN 이 들어 있는지까지 본다.
+6. **중복 logicalId** — `bad/dup/` 스캔 시 메시지에 충돌한 **두 클래스 이름이 모두** 들어 있다.
+   하나만 알려 주면 사용자가 나머지 하나를 직접 찾아야 한다.
+7. **cause 보존** — `bad/noctor/` 의 예외는 `getCause()` 가 `ReflectiveOperationException` 계열이다.
+   원인을 삼키면 사용자가 진짜 이유를 못 본다.
 
 ### 3번 PR — 필드와 참조 추출
 
-11. kind 와 provider 는 config 에도 dependencies 에도 들어가지 않는다
-12. 스칼라 필드가 config 에 필드 이름과 값으로 들어간다
-13. 조부모 클래스가 선언한 필드까지 읽는다
-14. 자식이 shadowing 한 필드는 자식 값이 이긴다
-15. 값이 Class 이고 그 클래스에 @Resource 가 있으면 dependencies 에 그 name 이 들어간다
-16. 컬렉션 참조 필드는 원소마다 dependencies 에 들어간다
-17. 값이 null 인 필드는 config 에도 dependencies 에도 들어가지 않는다
-18. @Required 가 붙은 필드 이름이 requiredFields 에 모이고 참조 필드도 포함된다
-19. @Behavior 가 달린 annotation 만 포착하고 @Resource 는 제외한다
-20. 포착된 annotation 은 실제로 붙어 있던 인스턴스이고 멤버 값을 읽을 수 있다
-21. 포착된 annotation 의 순서가 annotation type 이름순으로 고정된다
-22. @Behavior 가 없는 annotation 은 포착되지 않는다
+8. **메타 필드 제외** — 모든 자원에 대해 `config()` 에 `"kind"`, `"provider"` 키가 없고
+   `dependencies()` 에도 그 값이 섞이지 않는다.
+9. **스칼라 필드** — `betaSubnet` 의 `config()` 에 `cidrBlock=10.0.1.0/24` 가 있고, `gammaEc2` 의
+   `config()` 에 `instanceType=t3.micro` 가 있다.
+10. **조부모 필드** — `alphaVpc` 의 `config()` 에 `owner=infra-team` 이 있다. `ScanResource` 는
+    `GoodVpc` 의 조부모다.
+11. **shadowing** — `gammaEc2` 의 `config()` 의 `owner` 가 `team-b` 다. 부모 값 `infra-team` 이
+    아니어야 하고, `owner` 키가 중복으로 두 번 들어가지도 않는다.
+12. **단일 참조** — 값이 `Class` 이고 그 클래스에 `@Resource` 가 있으면 dependencies 에 그 name 이
+    들어간다. `betaSubnet` 의 `dependencies()` 가 `alphaVpc` 를 담고 `config()` 에는 `vpc` 키가 없다.
+13. **컬렉션 참조** — 원소마다 dependencies 에 들어간다. `deltaRds` 의 `dependencies()` 가
+    `betaSubnet` 과 `epsilonSubnet` 을 모두 담고 `config()` 에 `subnets` 키가 없다. 이 test 가
+    실패하면 RDS 를 표현할 수 없다는 뜻이다.
+14. **null 필드** — `betaSubnet` 의 `config()` 에 `az` 키가 **없다**. `null` 값이 들어 있는 게
+    아니라 키 자체가 없어야 한다. `Map.copyOf` 가 null 값에 NPE 를 던지므로 이건 구현 제약이기도
+    하다(`plan.md` §6).
+15. **requiredFields** — `betaSubnet` 의 `requiredFields()` 가 `{vpc, cidrBlock}` 이다. 참조 필드
+    `vpc` 가 빠지면 안 된다. `az` 는 `@Required` 가 없으므로 포함되지 않는다.
+16. **매크로 annotation 포착** — `@Behavior` 가 달린 것만 포착하고 `@Resource` 는 제외한다.
+    `betaSubnet` 의 `capturedAnnotations()` 크기가 1 이고 그 `handlerClass()` 가 `TagHandler.class` 다.
+17. **annotation 인스턴스** — 16 에서 꺼낸 것을 `Tagged` 로 캐스팅해 `value()` 가 `"net"` 이다.
+    붙어 있던 값이 그대로 와야 한다.
+18. **annotation 정렬** — `gammaEc2` 의 `capturedAnnotations()` 가 `Encrypted`, `Tagged` 순이다
+    (type 이름 사전순). 선언 순서는 `@Tagged @Encrypted` 라 정렬이 실제로 동작해야 뒤집힌다.
+19. **@Behavior 없는 annotation** — 16 의 확장. `betaSubnet` 에 `@Plain` 이 붙어 있는데도 포착
+    목록에 없다는 것을 따로 단언한다.
 
 ## 공개 인터페이스 시그니처 (확정)
 
@@ -92,101 +117,62 @@ public class ResourceScanException extends RuntimeException {
 `framework/src/test/java/com/infrastruct/fixture/scan/` 아래에 둔다. framework 는 프로바이더를
 의존하지 않으므로 test 전용 자원 계층을 직접 만든다.
 
+> 클래스 본문은 적지 않는다. 실제로 돌려 본 fixture 가 `resource-scanner-wip` (`d609a97`) 에 그대로
+> 있으므로, 코드가 필요하면 그쪽을 열면 된다. 여기에는 **무엇을 왜 두는지**만 남긴다.
+
 ### 공통 토대
 
-```java
-public enum ScanKind implements Kind {
-    Vpc, Subnet, Ec2, Rds;
-    @Override public String value() { return name(); }
-}
-
-public class ScanProvider extends Provider {}
-
-/** 실제 프로바이더의 AwsResource 자리. owner 는 조부모 필드까지 읽는지 보려고 둔다. */
-public class ScanResource extends ProviderResource {
-    { provider = ScanProvider.class; }
-    public String owner = "infra-team";
-}
-```
+- `ScanKind` — `Kind` 를 구현한 enum. `Vpc`, `Subnet`, `Ec2`, `Rds`
+- `ScanProvider` — `Provider` 상속. 내용 없음
+- `ScanResource` — `ProviderResource` 상속. `provider` 를 채우고 `owner = "infra-team"` 필드를 둔다.
+  실제 프로바이더의 `AwsResource` 자리다. `owner` 는 **조부모 필드까지 읽는지** 보는 장치다
 
 ### 자원 타입
 
-```java
-public class ScanVpc extends ScanResource {
-    { kind = ScanKind.Vpc; }
-    @Required public String cidrBlock;
-}
+`ScanResource` 를 상속하고 각자 `kind` 를 채운다. 필드 구성이 곧 검증 장치다.
 
-public class ScanSubnet extends ScanResource {
-    { kind = ScanKind.Subnet; }
-    @Required public Class<? extends ScanVpc> vpc;   // 단일 참조
-    @Required public String cidrBlock;
-    public String az;                                 // 값을 안 넣으면 null
-}
+| 클래스 | 필드 | 무엇을 반증하나 |
+|---|---|---|
+| `ScanVpc` | `@Required cidrBlock` | 스칼라 필드가 config 로 |
+| `ScanSubnet` | `@Required vpc`(`Class<? extends ScanVpc>`), `@Required cidrBlock`, `az` | 단일 참조. `az` 는 값을 안 넣어 **null 필드**를 만든다 |
+| `ScanEc2` | `@Required subnet`, `instanceType = "t3.micro"` | 기본값이 있는 스칼라 |
+| `ScanRds` | `@Required subnets`(`List<Class<? extends ScanSubnet>>`), `engine = "mysql"` | **컬렉션 참조**. RDS 가 subnet 2개 이상을 요구하는 것을 본뜸(`plan.md` §5) |
 
-public class ScanEc2 extends ScanResource {
-    { kind = ScanKind.Ec2; }
-    @Required public Class<? extends ScanSubnet> subnet;
-    public String instanceType = "t3.micro";
-}
+참조 필드가 `Class<? extends T>` 인 이유는 `plan.md` §5 다. 다이어그램의 `@Required public Vpc vpc;`
+는 그대로는 컴파일되지 않는다.
 
-/** 컬렉션 참조 검증용. RDS 가 subnet 2개 이상을 요구하는 것을 본뜸(plan §5). */
-public class ScanRds extends ScanResource {
-    { kind = ScanKind.Rds; }
-    @Required public List<Class<? extends ScanSubnet>> subnets;
-    public String engine = "mysql";
-}
-```
+`ScanRds` 는 컬렉션 참조 지원의 반증 장치다. 없으면 단일 참조만 처리하는 구현이 그냥 통과한다.
 
 ### 매크로 annotation 과 핸들러
 
-```java
-@Behavior(handler = TagHandler.class)
-@Retention(RetentionPolicy.RUNTIME) @Target(ElementType.TYPE)
-public @interface Tagged { String value() default "default-tag"; }
+셋 다 `RUNTIME` retention 에 `TYPE` target 이다.
 
-@Behavior(handler = EncryptHandler.class)
-@Retention(RetentionPolicy.RUNTIME) @Target(ElementType.TYPE)
-public @interface Encrypted {}
-
-/** @Behavior 가 없다. 포착되면 안 된다. */
-@Retention(RetentionPolicy.RUNTIME) @Target(ElementType.TYPE)
-public @interface Plain {}
-```
+| annotation | `@Behavior` | 비고 |
+|---|---|---|
+| `Tagged` | `handler = TagHandler.class` | `String value() default "default-tag"` 멤버를 둔다 |
+| `Encrypted` | `handler = EncryptHandler.class` | 멤버 없음 |
+| `Plain` | **없음** | 포착되면 안 된다 |
 
 `Tagged` 에 멤버를 둔 이유는 포착된 것이 **실제로 붙어 있던 인스턴스**인지 확인하기 위해서다.
 멤버가 없으면 새로 만든 빈 annotation 을 넣어도 test 가 통과한다.
 
+`Plain` 을 두는 이유는 "`@Behavior` 가 달린 것만 포착한다"를 반증 가능하게 만들기 위해서다.
+매크로 annotation 만 있으면 전부 포착하는 구현도 test 를 통과해 버린다.
+
 ### 정상 자원 (`fixture/scan/good/`)
 
-```java
-@Resource(name = "alphaVpc")
-public class GoodVpc extends ScanVpc {
-    { cidrBlock = "10.0.0.0/16"; }
-}
+| logicalId | 클래스 | 채우는 값 | 붙인 annotation |
+|---|---|---|---|
+| `alphaVpc` | `GoodVpc extends ScanVpc` | `cidrBlock = "10.0.0.0/16"` | 없음 |
+| `betaSubnet` | `GoodSubnet extends ScanSubnet` | `vpc = GoodVpc.class`, `cidrBlock = "10.0.1.0/24"`, `az` 는 비움 | `@Tagged("net")`, `@Plain` |
+| `gammaEc2` | `GoodEc2 extends ScanEc2` | `subnet = GoodSubnet.class`, `owner = "team-b"` | `@Tagged @Encrypted` |
+| `deltaRds` | `GoodRds extends ScanRds` | `subnets = List.of(GoodSubnet.class, OtherSubnet.class)` | 없음 |
+| `epsilonSubnet` | `OtherSubnet extends ScanSubnet` | 컬렉션 원소를 2개로 만들기 위한 두 번째 subnet | 없음 |
 
-@Tagged("net")
-@Plain                                    // 포착되면 안 됨
-@Resource(name = "betaSubnet")
-public class GoodSubnet extends ScanSubnet {
-    { vpc = GoodVpc.class; cidrBlock = "10.0.1.0/24"; }
-    // az 는 일부러 비워 둔다 → null 필드가 config 에 안 들어가는지 확인
-}
-
-@Tagged @Encrypted                        // 정렬 확인용으로 두 개
-@Resource(name = "gammaEc2")
-public class GoodEc2 extends ScanEc2 {
-    { subnet = GoodSubnet.class; }
-    public String owner = "team-b";        // ScanResource.owner 를 shadowing
-}
-
-@Resource(name = "deltaRds")
-public class GoodRds extends ScanRds {
-    { subnets = List.of(GoodSubnet.class, OtherSubnet.class); }
-}
-```
-
-`OtherSubnet` 은 컬렉션 원소를 2개로 만들기 위한 두 번째 subnet 이다(`@Resource(name="epsilonSubnet")`).
+의도한 함정이 셋이다. `betaSubnet` 의 `az` 를 비워 **null 필드가 config 에 안 들어가는지** 보고,
+`gammaEc2` 의 `owner` 로 `ScanResource.owner` 를 **shadowing** 해 자식 값이 이기는지 본다.
+`gammaEc2` 에 annotation 을 `@Tagged @Encrypted` 순으로 붙인 것은 **정렬이 실제로 뒤집는지** 보려는
+것이다. type 이름순이면 `Encrypted` 가 앞이어야 한다.
 
 ### 깨진 자원 (`fixture/scan/bad/<사유>/`)
 
@@ -202,56 +188,6 @@ public class GoodRds extends ScanRds {
 | `bad/notprovider/` | `ProviderResource` 를 상속하지 않음 |
 | `bad/nokind/` | `ScanResource` 는 상속하되 `kind` 를 안 채움 |
 | `bad/dup/` | 서로 다른 두 클래스가 같은 `@Resource(name = "twin")` |
-
-## 검증 메모 (어떻게 테스트할지)
-
-> 주의: 이 절은 **행동이 아니라 구현 힌트**다. 하네스가 `- ` 불릿을 행동으로 자동 등록하므로,
-> 여기서는 일부러 `- ` 대신 번호 목록을 쓴다.
->
-> 1번만 이번 PR 범위다. 2~20번은 fixture 가 서야 쓸 수 있어 2번, 3번 PR 로 간다.
-
-1. **인스턴스화** — `new ResourceScanner()` 와 `new ResourceScanner(GOOD)` 가 예외 없이 만들어진다.
-   `GOOD` 은 `"com.infrastruct.fixture.scan.good"` 상수로 둔다. 스텁 단계에서는 여기에 더해
-   `basePackage()` 가 넘긴 값과 `null` 을 각각 돌려주는 것, `scan()` 이 빈 결과를 주는 것까지 본다.
-2. **자원 발견과 logicalId** — `good` 만 스캔했을 때 `resources()` 크기가 5 이고
-   logicalId 집합이 `{alphaVpc, betaSubnet, gammaEc2, deltaRds, epsilonSubnet}` 이다.
-3. **basePackage 격리** — `good` 만 스캔하면 `bad` 의 깨진 자원이 걸리지 않아 예외가 나지 않는다.
-   이것이 성립해야 아래 에러 test 들이 서로를 오염시키지 않는다.
-4. **순서 고정** — `resources()` 의 logicalId 를 순서대로 뽑은 리스트가, 클래스 FQCN 을 정렬한
-   순서와 일치한다. 상수로 박지 말고 fixture 클래스 이름에서 기대값을 계산해 비교한다.
-5. **kind** — `alphaVpc` 의 `kind()` 가 `ScanKind.Vpc` 와 `assertSame` 이다. 나머지도 각각 확인.
-6. **메타 필드 제외** — 모든 자원에 대해 `config()` 에 `"kind"`, `"provider"` 키가 없고
-   `dependencies()` 에도 그 값이 섞이지 않는다.
-7. **스칼라 필드** — `betaSubnet` 의 `config()` 에 `cidrBlock=10.0.1.0/24` 가 있고,
-   `gammaEc2` 의 `config()` 에 `instanceType=t3.micro` 가 있다.
-8. **조부모 필드** — `alphaVpc` 의 `config()` 에 `owner=infra-team` 이 있다.
-   `ScanResource` 는 `GoodVpc` 의 조부모다.
-9. **shadowing** — `gammaEc2` 의 `config()` 의 `owner` 가 `team-b` 다. 부모 값 `infra-team` 이
-   아니어야 하고, `owner` 키가 중복으로 두 번 들어가지도 않는다.
-10. **단일 참조** — `betaSubnet` 의 `dependencies()` 가 `alphaVpc` 를 담는다.
-    `config()` 에는 `vpc` 키가 없다.
-11. **컬렉션 참조** — `deltaRds` 의 `dependencies()` 가 `betaSubnet` 과 `epsilonSubnet` 을 모두
-    담는다. `config()` 에 `subnets` 키가 없다. 이 test 가 실패하면 RDS 를 표현할 수 없다는 뜻이다.
-12. **null 필드** — `betaSubnet` 의 `config()` 에 `az` 키가 **없다**. `null` 값이 들어 있는 게
-    아니라 키 자체가 없어야 한다. `Map.copyOf` 가 null 값에 NPE 를 던지므로 이건 구현 제약이기도
-    하다(`plan.md` §6).
-13. **requiredFields** — `betaSubnet` 의 `requiredFields()` 가 `{vpc, cidrBlock}` 이다.
-    참조 필드 `vpc` 가 빠지면 안 된다. `az` 는 `@Required` 가 없으므로 포함되지 않는다.
-14. **매크로 annotation 포착** — `betaSubnet` 의 `capturedAnnotations()` 크기가 1 이고
-    그 `handlerClass()` 가 `TagHandler.class` 다. `@Resource` 와 `@Plain` 은 안 들어간다.
-15. **annotation 인스턴스** — 위에서 꺼낸 것을 `Tagged` 로 캐스팅해 `value()` 가 `"net"` 이다.
-    붙어 있던 값이 그대로 와야 한다.
-16. **annotation 정렬** — `gammaEc2` 의 `capturedAnnotations()` 가 `Encrypted`, `Tagged` 순이다
-    (type 이름 사전순). 선언 순서는 `@Tagged @Encrypted` 라 정렬이 실제로 동작해야 뒤집힌다.
-17. **@Behavior 없는 annotation** — 14 의 확장. `betaSubnet` 에 `@Plain` 이 붙어 있는데도
-    포착 목록에 없다는 것을 따로 단언한다.
-18. **에러 6종** — 각 `bad/*` package 를 basePackage 로 스캔하면 `ResourceScanException` 이 난다.
-    `assertThatThrownBy(...).isInstanceOf(ResourceScanException.class).hasMessageContaining(FQCN)`
-    형태로, 메시지에 문제 클래스의 FQCN 이 들어 있는지까지 본다.
-19. **중복 logicalId** — `bad/dup/` 스캔 시 메시지에 충돌한 **두 클래스 이름이 모두** 들어 있다.
-    하나만 알려 주면 사용자가 나머지 하나를 직접 찾아야 한다.
-20. **cause 보존** — `bad/noctor/` 의 예외는 `getCause()` 가 `ReflectiveOperationException` 계열이다.
-    원인을 삼키면 사용자가 진짜 이유를 못 본다.
 
 ## 이번 범위에서 검증하지 않는 것
 
