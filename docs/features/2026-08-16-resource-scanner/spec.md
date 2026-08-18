@@ -3,74 +3,63 @@
 `plan.md` 를 테스트 가능한 **행동 목록**으로 옮긴 것. 아래 `- ` 불릿들이 첫 `/red` 때
 체크리스트(`behaviors[]`)로 등록되고, 위에서부터 순서대로 red→green 을 돈다.
 
-이번 PR 은 **뼈대**다(근거: `plan.md` §1, §1-1). 그래서 행동 목록은 "시그니처가 존재하고 계약대로
-생겼다" 수준에서 멈춘다. reflection 결과의 정확성을 보는 행동들은 2번과 3번 PR 의 spec 으로 넘긴다.
-아래 「다음 PR 로 넘기는 행동」에 목록을 남겨 두므로, 그 PR 의 spec 은 여기서 잘라 가면 된다.
+이번 PR 은 **발견과 검증**이다(근거: `plan.md` §1-1 의 2번). 자원을 찾아내고 logicalId 와 `kind` 를
+확정하고 잘못된 선언을 거부하는 데까지 간다. 필드에서 값을 꺼내는 행동은 3번 PR 로 넘긴다. 아래
+「다음 PR 로 넘기는 행동」에 목록을 남겨 두므로, 그 PR 의 spec 은 여기서 잘라 가면 된다.
 
 ## 행동 목록 (red 사이클 순서)
 
 - ResourceScanner 는 인자 없이, 그리고 basePackage 문자열로 인스턴스를 만들 수 있다
 - 생성자에 넘긴 basePackage 를 그대로 보관하고 인자 없는 생성자는 전체 스캔을 뜻하는 null 이 된다
-- scan() 은 스텁이라 원소 없는 ScannedResources 를 돌려준다
 - ResourceScanException 은 RuntimeException 이고 메시지를 그대로 보존한다
 - ResourceScanException 은 원인 예외를 cause 로 보존한다
+- @Resource 가 붙은 클래스를 모두 찾고 logicalId 는 name() 값 그대로다
+- basePackage 밖의 자원은 스캔하지 않아 good 만 스캔하면 bad 의 깨진 자원이 걸리지 않는다
+- 결과 순서가 클래스 FQCN 순으로 고정된다
+- kind 를 ProviderResource 에서 읽어 fixture 의 enum 상수와 동일한 인스턴스를 돌려준다
+- 빈 name 과 공백뿐인 name 과 중간에 공백이 섞인 name 은 각각 거부하고 메시지에 FQCN 을 담는다
+- ProviderResource 미상속과 kind null 과 인자 없는 생성자 부재도 각각 거부한다
+- logicalId 가 중복이면 충돌한 두 클래스 이름이 모두 메시지에 담긴다
+- 인스턴스화 실패의 원인 예외를 ReflectiveOperationException 계열 cause 로 보존한다
 
 ## 다음 PR 로 넘기는 행동
 
-`plan.md` §1-1 의 분할을 따른다. 아래는 지금 등록하지 않는다. 각 항목에 **어떻게 확인하는지**를
+`plan.md` §1-1 의 3번 PR 이다. 아래는 지금 등록하지 않는다. 각 항목에 **어떻게 확인하는지**를
 함께 적어 뒀으므로 그 PR 의 spec 은 여기서 잘라 가면 된다. 하네스가 `- ` 불릿을 행동으로 자동
 등록하므로 여기서는 일부러 번호 목록을 쓴다.
 
 기대값은 위 fixture 표에서 온다. `GOOD` 은 `"com.infrastruct.fixture.scan.good"` 상수로 둔다.
 
-### 2번 PR — 발견과 검증
-
-1. **자원 발견과 logicalId** — `@Resource` 가 붙은 클래스를 모두 찾고 logicalId 는 `name()` 값
-   그대로다. `good` 만 스캔했을 때 `resources()` 크기가 5 이고 logicalId 집합이
-   `{alphaVpc, betaSubnet, gammaEc2, deltaRds, epsilonSubnet}` 이다.
-2. **basePackage 격리** — 범위 밖의 자원은 스캔하지 않는다. `good` 만 스캔하면 `bad` 의 깨진
-   자원이 걸리지 않아 예외가 나지 않는다. 이것이 성립해야 아래 에러 test 들이 서로를 오염시키지 않는다.
-3. **순서 고정** — 결과 순서가 클래스 이름순이다. logicalId 를 순서대로 뽑은 리스트가 클래스 FQCN
-   을 정렬한 순서와 일치한다. 상수로 박지 말고 fixture 클래스 이름에서 기대값을 계산해 비교한다.
-4. **kind** — `ProviderResource` 필드에서 읽는다. `alphaVpc` 의 `kind()` 가 `ScanKind.Vpc` 와
-   `assertSame` 이다. 나머지도 각각 확인한다.
-5. **에러 6종** — 각 `bad/*` package 를 basePackage 로 스캔하면 `ResourceScanException` 이 난다
-   (빈 name, 공백뿐인 name, 중간 공백, `ProviderResource` 미상속, `kind` null, 생성자 없음).
-   `assertThatThrownBy(...).isInstanceOf(ResourceScanException.class).hasMessageContaining(FQCN)`
-   형태로, 메시지에 문제 클래스의 FQCN 이 들어 있는지까지 본다.
-6. **중복 logicalId** — `bad/dup/` 스캔 시 메시지에 충돌한 **두 클래스 이름이 모두** 들어 있다.
-   하나만 알려 주면 사용자가 나머지 하나를 직접 찾아야 한다.
-7. **cause 보존** — `bad/noctor/` 의 예외는 `getCause()` 가 `ReflectiveOperationException` 계열이다.
-   원인을 삼키면 사용자가 진짜 이유를 못 본다.
-
 ### 3번 PR — 필드와 참조 추출
 
-8. **메타 필드 제외** — 모든 자원에 대해 `config()` 에 `"kind"`, `"provider"` 키가 없고
+1. **메타 필드 제외** — 모든 자원에 대해 `config()` 에 `"kind"`, `"provider"` 키가 없고
    `dependencies()` 에도 그 값이 섞이지 않는다.
-9. **스칼라 필드** — `betaSubnet` 의 `config()` 에 `cidrBlock=10.0.1.0/24` 가 있고, `gammaEc2` 의
+2. **스칼라 필드** — `betaSubnet` 의 `config()` 에 `cidrBlock=10.0.1.0/24` 가 있고, `gammaEc2` 의
    `config()` 에 `instanceType=t3.micro` 가 있다.
-10. **조부모 필드** — `alphaVpc` 의 `config()` 에 `owner=infra-team` 이 있다. `ScanResource` 는
-    `GoodVpc` 의 조부모다.
-11. **shadowing** — `gammaEc2` 의 `config()` 의 `owner` 가 `team-b` 다. 부모 값 `infra-team` 이
-    아니어야 하고, `owner` 키가 중복으로 두 번 들어가지도 않는다.
-12. **단일 참조** — 값이 `Class` 이고 그 클래스에 `@Resource` 가 있으면 dependencies 에 그 name 이
-    들어간다. `betaSubnet` 의 `dependencies()` 가 `alphaVpc` 를 담고 `config()` 에는 `vpc` 키가 없다.
-13. **컬렉션 참조** — 원소마다 dependencies 에 들어간다. `deltaRds` 의 `dependencies()` 가
-    `betaSubnet` 과 `epsilonSubnet` 을 모두 담고 `config()` 에 `subnets` 키가 없다. 이 test 가
-    실패하면 RDS 를 표현할 수 없다는 뜻이다.
-14. **null 필드** — `betaSubnet` 의 `config()` 에 `az` 키가 **없다**. `null` 값이 들어 있는 게
-    아니라 키 자체가 없어야 한다. `Map.copyOf` 가 null 값에 NPE 를 던지므로 이건 구현 제약이기도
-    하다(`plan.md` §6).
-15. **requiredFields** — `betaSubnet` 의 `requiredFields()` 가 `{vpc, cidrBlock}` 이다. 참조 필드
-    `vpc` 가 빠지면 안 된다. `az` 는 `@Required` 가 없으므로 포함되지 않는다.
-16. **매크로 annotation 포착** — `@Behavior` 가 달린 것만 포착하고 `@Resource` 는 제외한다.
-    `betaSubnet` 의 `capturedAnnotations()` 크기가 1 이고 그 `handlerClass()` 가 `TagHandler.class` 다.
-17. **annotation 인스턴스** — 16 에서 꺼낸 것을 `Tagged` 로 캐스팅해 `value()` 가 `"net"` 이다.
+3. **조부모 필드** — `alphaVpc` 의 `config()` 에 `owner=infra-team` 이 있다. `ScanResource` 는
+   `GoodVpc` 의 조부모다.
+4. **shadowing** — `gammaEc2` 의 `config()` 의 `owner` 가 `team-b` 다. 부모 값 `infra-team` 이
+   아니어야 하고, `owner` 키가 중복으로 두 번 들어가지도 않는다.
+5. **단일 참조** — 값이 `Class` 이고 그 클래스에 `@Resource` 가 있으면 dependencies 에 그 name 이
+   들어간다. `betaSubnet` 의 `dependencies()` 가 `alphaVpc` 를 담고 `config()` 에는 `vpc` 키가 없다.
+6. **컬렉션 참조** — 원소마다 dependencies 에 들어간다. `deltaRds` 의 `dependencies()` 가
+   `betaSubnet` 과 `epsilonSubnet` 을 모두 담고 `config()` 에 `subnets` 키가 없다. 이 test 가
+   실패하면 RDS 를 표현할 수 없다는 뜻이다.
+7. **null 필드** — `betaSubnet` 의 `config()` 에 `az` 키가 **없다**. `null` 값이 들어 있는 게
+   아니라 키 자체가 없어야 한다. `Map.copyOf` 가 null 값에 NPE 를 던지므로 이건 구현 제약이기도
+   하다(`plan.md` §6).
+8. **requiredFields** — `betaSubnet` 의 `requiredFields()` 가 `{vpc, cidrBlock}` 이다. 참조 필드
+   `vpc` 가 빠지면 안 된다. `az` 는 `@Required` 가 없으므로 포함되지 않는다.
+9. **매크로 annotation 포착** — `@Behavior` 가 달린 것만 포착하고 `@Resource` 는 제외한다.
+   `betaSubnet` 의 `capturedAnnotations()` 크기가 1 이고 그 `handlerClass()` 가 `TagHandler.class` 다.
+10. **annotation 인스턴스** — 9 에서 꺼낸 것을 `Tagged` 로 캐스팅해 `value()` 가 `"net"` 이다.
     붙어 있던 값이 그대로 와야 한다.
-18. **annotation 정렬** — `gammaEc2` 의 `capturedAnnotations()` 가 `Encrypted`, `Tagged` 순이다
+11. **annotation 정렬** — `gammaEc2` 의 `capturedAnnotations()` 가 `Encrypted`, `Tagged` 순이다
     (type 이름 사전순). 선언 순서는 `@Tagged @Encrypted` 라 정렬이 실제로 동작해야 뒤집힌다.
-19. **@Behavior 없는 annotation** — 16 의 확장. `betaSubnet` 에 `@Plain` 이 붙어 있는데도 포착
+12. **@Behavior 없는 annotation** — 9 의 확장. `betaSubnet` 에 `@Plain` 이 붙어 있는데도 포착
     목록에 없다는 것을 따로 단언한다.
+13. **필드 순회 순서** — 위 행동들이 통과해도 `dependencies()` 의 원소 순서는 아직 고정되어 있지
+    않다. `getDeclaredFields()` 가 순서를 보장하지 않으므로 필드도 이름순으로 정렬할지 정해야 한다.
 
 ## 공개 인터페이스 시그니처 (확정)
 
@@ -108,11 +97,14 @@ public class ResourceScanException extends RuntimeException {
 > `InfraStruct.run()` 을 타고 사용자에게까지 올라간다. 사용자가 catch 해야 하는 타입이면
 > `api` 로 옮겨야 한다. 배선 feature(정연 님, 8/22)에서 결론이 날 항목이라 이번엔 `internal`.
 
-## Test fixture (2번, 3번 PR)
+## Test fixture
 
-> 이번 PR 에는 들어가지 않는다. 본문이 비어 있으면 검증할 대상이 없어서, 각 fixture 는 그것을 실제로
-> 쓰는 PR 과 함께 올린다(`plan.md` §12). 설계는 지금 확정해 두고 아래를 그대로 따른다. `bad/**` 는
-> 2번 PR, `good/**` 와 매크로 annotation 은 3번 PR 이다.
+> **이번 PR 에 들어간 범위:** 공통 토대, 자원 타입 4종, `good/**` 5개, `bad/**` 7개 package.
+> 매크로 annotation(`Tagged`, `Encrypted`, `Plain`)과 핸들러는 그것을 소비하는 3번 PR 로 미룬다.
+> 그래서 아래 「정상 자원」표의 annotation 열은 아직 코드에 반영되지 않았다.
+>
+> `plan.md` §1-1 은 `good/**` 를 3번 PR 로 잡았지만, 위 행동 목록의 자원 발견과 순서 고정과 `kind`
+> 추출이 전부 `good` 의 자원 5종을 기대값으로 쓴다. fixture 없이는 red 를 만들 수 없어 이번으로 당겼다.
 
 `framework/src/test/java/com/infrastruct/fixture/scan/` 아래에 둔다. framework 는 프로바이더를
 의존하지 않으므로 test 전용 자원 계층을 직접 만든다.

@@ -1,20 +1,19 @@
 # plan: resource-scanner
 
-브랜치: `feat/resource-scanner-skeleton`
+브랜치: `feat/resource-scanner-discovery` (1번 PR 은 `feat/resource-scanner-skeleton`)
 
 ## 1. 목표 (무엇을)
 
-**`ResourceScanner` 의 뼈대(스텁).** 공개 시그니처와 전용 예외 타입만 확정하고 본문은 비운다.
+**`ResourceScanner` 의 발견과 검증.** 1번 PR 이 못 박은 시그니처 안을 채워, 자원을 찾아내고
+logicalId 와 `kind` 를 확정하고 잘못된 선언을 거부하는 데까지 간다.
 
 사용자가 `@Resource` 를 붙여 선언한 클래스를 reflection 으로 읽어 `ScannedResources` 로 바꾸는 것이
 이 모듈의 최종 목표다. 파이프라인의 입구이고, 지금 이것이 없어서 뒤 단계 모듈의 test 가 전부 입력을
-손으로 지어내고 있다. 이 문서는 최종 형태까지의 설계를 모두 담되, **이번 PR 의 산출물은 그중 뼈대까지**다.
+손으로 지어내고 있다. 이 문서는 최종 형태까지의 설계를 모두 담되, **이번 PR 의 산출물은 그중
+발견과 검증까지**다. 필드에서 값을 꺼내는 것은 3번 PR 이다.
 
 `ScannedResources` 의 Javadoc 이 이미 `ResourceScanner.scan()` 을 반환 타입 계약으로 못 박아 두었으므로,
 클래스 이름과 메서드 이름은 이번에 새로 정하는 것이 아니라 **이미 정해진 것을 따르는 것**이다.
-
-`InfraStruct` · `CurrentStateStore` · `DesiredStateCreator` 뼈대와 같은 성격이다. 시그니처를 먼저
-못 박아 호출부를 언블록하고, 본문은 뒤따르는 PR 에서 채운다.
 
 ### 1-1. PR 분할
 
@@ -22,12 +21,25 @@
 
 | PR | 범위 | 산출물 |
 |---|---|---|
-| **1 (이번)** | 뼈대 | plan / spec / summary, `ResourceScanner` 시그니처, `ResourceScanException`, 시그니처 test |
-| 2 | 발견과 검증 | classgraph 수집, FQCN 정렬, logicalId 검증, 인스턴스화, `kind` 추출, 중복 검사 + `fixture/scan/bad/**` |
-| 3 | 필드와 참조 추출 | 필드 순회, config / dependencies / requiredFields, 매크로 annotation 포착 + `fixture/scan/good/**` + SpotBugs 예외 목록 |
+| 1 | 뼈대 | plan / spec / summary, `ResourceScanner` 시그니처, `ResourceScanException`, 시그니처 test |
+| **2 (이번)** | 발견과 검증 | classgraph 수집, FQCN 정렬, logicalId 검증, 인스턴스화, `kind` 추출, 중복 검사 + `fixture/scan/bad/**` + `fixture/scan/good/**` + SpotBugs 예외 목록 |
+| 3 | 필드와 참조 추출 | 필드 순회, config / dependencies / requiredFields, 매크로 annotation 포착 + 매크로 annotation fixture |
+
+> 2번을 짜면서 두 가지가 3번에서 2번으로 앞당겨졌다. `good/**` 는 자원 발견과 순서 고정과 `kind`
+> 추출 test 의 기대값이라 없으면 red 를 만들 수 없었고, SpotBugs 예외 목록은 `setAccessible` 때문이
+> 아니라 fixture 의 public 필드를 "안 읽는 필드"로 오탐해서 필요해졌다. 3번에 남는 fixture 는
+> 매크로 annotation 3종과 핸들러뿐이다.
 
 2번과 3번 브랜치는 직전 브랜치가 아니라 **merge 된 `dev` 에서 딴다.** 이어서 파면 PR diff 에 앞
 단계 commit 이 다시 딸려 들어가 분할한 의미가 없어진다.
+
+> 2번은 1번이 아직 merge 되지 않은 상태에서 시작해야 해서 `feat/resource-scanner-skeleton` 에서
+> 땄다. `dev` 에는 `ResourceScanner` 자체가 없어 거기서 파면 skeleton 을 다시 만들어야 하고, 그게
+> 오히려 diff 를 부풀린다. 1번이 merge 되면 아래로 base 를 옮겨 같은 상태를 만든다.
+>
+> ```
+> git rebase --onto origin/dev feat/resource-scanner-skeleton
+> ```
 
 구현 전체를 미리 써 본 작업본은 `resource-scanner-wip` 브랜치(`d609a97`)에 남겨 두었다. 설계 근거가
 실제로 도는 코드에서 나온 것이라는 뜻이고, 2번과 3번은 그것을 대조군 삼아 다시 유도한다.
@@ -321,11 +333,11 @@ spec.md 의 행동 목록이 될 순서다. §1-1 의 PR 경계를 함께 표시
 
 ## 12. 범위 밖 (그리고 왜)
 
-- **`scan()` 본문** — §1-1 의 2번과 3번 PR. 이번 PR 은 시그니처만 못 박는다.
-- **Test fixture (`fixture/scan/**`)** — 본문이 없으면 검증할 대상이 없다. 각 fixture 는 그것을
-  실제로 쓰는 PR 과 함께 올린다. §10 의 설계는 그대로 간다.
-- **SpotBugs 예외 목록 (`config/spotbugs/exclude.xml`)** — `setAccessible` 억제가 목적이라
-  reflection 코드가 들어오는 3번 PR 에서 함께 올린다. §14 참조.
+- **필드 순회 (`config` / `dependencies` / `requiredFields`)** — §1-1 의 3번 PR.
+- **매크로 annotation 포착과 그 fixture** — 같은 3번 PR. 포착 대상이 없으면 반증할 수 없다.
+- ~~**SpotBugs 예외 목록 (`config/spotbugs/exclude.xml`)**~~ — 2번 PR 로 앞당겨졌다. 억제 사유가
+  `setAccessible` 이 아니라 fixture 의 public 필드 오탐(`UrF`, `UuF`)이라 fixture 와 같은 PR 에
+  올라간다. `setAccessible` 억제가 필요해지면 3번 PR 에서 같은 파일에 항목을 더한다. §14 참조.
 - **`InfraStruct.run()` 배선** — `PlanCreator` 가 PR #25 에 묶여 있어 파이프라인 전체를 엮을 수 없다.
   WBS 상 이것은 8/22 부터 정연 님 몫이다.
 - **`DesiredStateCreator` 본문 채우기** — 스캐너 출력이 그 입력이지만 남의 파일이다.

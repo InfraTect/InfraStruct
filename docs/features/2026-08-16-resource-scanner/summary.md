@@ -1,89 +1,71 @@
-# summary: resource-scanner (뼈대)
+# summary: resource-scanner (발견과 검증)
 
 ## 무엇을 만들었나
 
-`com.infrastruct.internal.ResourceScanner` — 사용자가 `@Resource` 로 선언한 클래스를 reflection 으로
-읽어 `ScannedResources` 로 바꾸는 내부 모듈의 **뼈대(스텁)**. 공개 시그니처만 확정하고 본문은 비웠다.
+1번 PR 이 시그니처만 못 박아 둔 `ResourceScanner.scan()` 의 본문을, `plan.md` §1-1 의 2번 범위까지
+채웠다. 자원을 찾아내고 logicalId 와 `kind` 를 확정하고 잘못된 선언을 거부하는 데까지다.
 
-| 멤버 | 계약 | 현재 동작(스텁) |
+| 단계 | 하는 일 | 근거 |
 |---|---|---|
-| `ResourceScanner()` | classpath 전체를 스캔한다 | `basePackage` 를 `null` 로 보관 |
-| `ResourceScanner(String)` | 주어진 package 아래만 스캔한다 | 인자를 그대로 보관 |
-| `ScannedResources scan()` | `@Resource` 클래스를 모두 찾아 스캔 결과로 변환 | 항상 빈 `ScannedResources` 반환 |
+| 수집 | classgraph 로 `@Resource` 클래스를 모은다. `basePackage` 가 있으면 그 범위만 | §3 |
+| 정렬 | 클래스 FQCN 순으로 고정한다 | §7-A |
+| logicalId | `@Resource(name)` 을 읽고 빈 값, 공백뿐인 값, 중간 공백을 거부한다 | §9 |
+| 인스턴스화 | 인자 없는 생성자로 만든다. 사용자의 initializer block 이 이때 실행된다 | §8 |
+| kind | `ProviderResource` 인지 확인하고 `kind` 를 읽는다. null 이면 거부한다 | §7-D |
+| 중복 검사 | 같은 logicalId 를 쓴 두 클래스를 **둘 다** 메시지에 담아 거부한다 | §7-E |
 
-전용 예외 `com.infrastruct.internal.ResourceScanException` 도 함께 확정했다. `RuntimeException` 을
-상속하고 `(String)` 과 `(String, Throwable)` 두 생성자를 둔다.
+`config`, `dependencies`, `requiredFields`, `capturedAnnotations` 는 아직 비운 채로 넘긴다. 필드
+순회는 3번 PR 이고, `scan()` 안에 그 자리 TODO 를 남겨 뒀다.
 
-파이프라인에서의 자리(`InfraStruct.run()`): 입구. `scan()` 결과가 `DesiredStateCreator.create()` 의
-입력이 된다.
+test 18개(신규 11개), 전체 `./gradlew check` 통과.
 
-테스트 7개 추가(`ResourceScannerTest`), 전체 `./gradlew check` 통과.
+## Test fixture 를 이번에 넣었다
 
-## 왜 뼈대만인가 — 리뷰 가능한 크기
+`framework/src/test/java/com/infrastruct/fixture/scan/` 아래에 test 전용 자원 계층을 만들었다.
+framework 는 프로바이더를 의존하지 않으므로 `AwsVpc` 같은 것을 쓸 수 없는데, **쓰지 않아도 된다는
+것 자체가 이 설계의 주장**이다.
 
-`DesiredStateCreator` 뼈대는 "설계 전제가 아직 안 섰다"가 이유였지만, 이번은 다르다. 스캔 로직 자체는
-설계가 다 서 있다. 나눈 이유는 **분량**이다.
+- 공통 토대 — `ScanKind`, `ScanProvider`, `ScanResource`
+- 자원 타입 4종 — `ScanVpc`, `ScanSubnet`, `ScanEc2`, `ScanRds`
+- 정상 자원 5개 (`good/`) — `alphaVpc`, `betaSubnet`, `gammaEc2`, `deltaRds`, `epsilonSubnet`
+- 깨진 자원 7 package (`bad/`) — 사유마다 격리했다. 한 package 에 모으면 하나를 스캔할 때 다른
+  것도 같이 걸려서 어느 검증이 예외를 냈는지 구분할 수 없다
 
-구현 전체를 한 번에 올리면 1,691줄이다. 900줄도 많다는 지적이 이미 있었고, 그 크기는 리뷰가 형식적으로
-흐른다. 그래서 `plan.md` §1-1 처럼 세 PR 로 나눴다.
+`bad/**` 를 사유별로 쪼갠 것이 실제로 값을 했다. basePackage 격리가 되지 않으면 에러 test 6개가
+서로를 오염시켜, 어느 검증이 동작하는지 알 수 없는 상태로 green 이 된다.
 
-| PR | 범위 | 대략 |
-|---|---|---|
-| **1 (이 PR)** | 뼈대 + 설계 문서 | ~800줄 (대부분 문서) |
-| 2 | 발견과 검증 + `fixture/scan/bad/**` | ~480줄 |
-| 3 | 필드와 참조 추출 + `fixture/scan/good/**` + SpotBugs 예외 | ~490줄 |
+## plan 에서 두 가지가 앞당겨졌다
 
-1번이 문서 쪽으로 무거운 것은 의도한 것이다. 설계 판단(§5 의 `Class` 값 참조, §6 의 `Map.copyOf` null
-제약, §7-C 의 `dependencies` 미결)을 여기서 한 번에 검토받고, 2번과 3번은 그 판단을 코드로 옮기는
-것만 보면 되게 한다.
+`plan.md` §1-1 은 `good/**` 와 SpotBugs 예외 목록을 3번 PR 로 잡았는데, 둘 다 이번으로 옮겼다.
+문서도 함께 고쳤다.
 
-`fixture/scan/**` 를 이번에 넣지 않은 이유도 같다. 본문이 비어 있으면 fixture 로 검증할 대상이 없어서,
-지금 올리면 아무 test 도 걸리지 않은 368줄이 된다. 각 fixture 는 그것을 실제로 쓰는 PR 과 함께 간다.
+**`good/**`** — 자원 발견, 순서 고정, `kind` 추출 test 가 전부 `good` 의 자원 5종을 기대값으로 쓴다.
+fixture 없이는 red 를 만들 수 없다. 3번 PR 에 남는 fixture 는 매크로 annotation 3종과 핸들러뿐이다.
 
-작업본은 `resource-scanner-wip` 브랜치(`d609a97`)에 보관했다. 설계 근거가 실제로 도는 코드에서 나온
-것이라는 뜻이고, 2번과 3번은 그것을 대조군으로 두고 다시 유도한다.
+**`config/spotbugs/exclude.xml`** — 억제 사유가 `setAccessible` 이 아니었다. fixture 의 public
+필드를 SpotBugs 가 "안 읽는 필드"(`UrF`, `UuF`)로 오탐한다. 값은 initializer block 이 채우고 읽는
+쪽은 스캐너의 reflection 이라 정적 분석에는 둘 다 안 보인다. `ProviderResource` 가
+`@SuppressFBWarnings` 로 억제한 것과 같은 건인데, fixture 는 8개 파일에 같은 패턴이 반복되어
+파일로 올렸다. 그 파일의 주석이 "한 곳뿐이면 annotation, 반복되면 여기"라는 기준을 남긴다.
 
-## 스텁인데도 확정해 둔 것
+## 판단 하나
 
-**`basePackage` 생성자.** 이번 범위에서 쓰이지 않지만 시그니처는 지금 연다. test 가 정상 fixture 와
-깨진 fixture 를 서로 다른 package 에 격리해 골라 스캔하는 구조(`spec.md` 「Test fixture」)가 여기에
-걸려 있고, 나중에 `InfraStruct.run(mainClass)` 가 `mainClass.getPackageName()` 을 넘기는 경로도
-같다(`plan.md` §3).
+**`ProviderResource` 미상속 검사를 인스턴스화보다 먼저 한다.** 순서를 뒤집으면 상속도 안 했고
+생성자도 없는 클래스가 "생성자가 없다"로 보고된다. 사용자가 먼저 고쳐야 하는 것은 상속 쪽이다.
 
-**`ResourceScanException`.** 본문이 없어 아직 던질 일이 없지만 계약이라 함께 못 박았다. MVP-2 가
-전부 `IllegalStateException` 이던 것을 전용 타입으로 바꾸는 것이 `plan.md` §9 의 판단이고, 이건
-"나중에 리팩터링"이 아니라 지금 정해야 호출부가 catch 할 타입을 안다.
+## 남은 것
 
-**`basePackage()` 접근자(package-private).** 스텁 단계에서 생성자 인자가 실제로 보관되는지 확인할
-길이 이것뿐이라 열었다. `scan()` 이 빈 결과만 주는 동안에는 간접 검증이 불가능하다. 2번 PR 에서
-`findAnnotatedClasses()` 가 이 값을 쓰기 시작한다.
-
-## 남의 파일은 건드리지 않았다
-
-- `spi/Required.java` 의 Javadoc 예시(`@Required public Vpc vpc;`)는 컴파일되지 않는 예시다
-  (`plan.md` §5). 남의 파일이라 고치지 않고 열린 질문 §13-3 으로 올렸다.
-- `dependencies` 타입(`List<String>`)이 EC2 의 참조 5종과 RDS 의 subnet 배열을 표현하지 못하는
-  문제(`plan.md` §7-C)도 `spi` 계약이고 `Comparator` 에 걸려서 이 feature 안에서 결론내지 않는다.
-  3번 PR 에서 추출을 메서드 하나로 격리해, 계약이 바뀌면 평탄화 한 줄과 그 test 만 고치게 둔다.
-
-## 위치 — `internal` (spi 아님)
-
-`Comparator` · `CurrentStateStore` · `DesiredStateCreator` 와 같은 `internal` 패키지. 상태 그릇
-(`ScannedResources`, `ScannedResourceState`)만 `spi` 에 있고, 그 그릇을 만드는 엔진 모듈은
-`internal` 에 둔다. 클래스 다이어그램에서도 `ResourceScanner` 박스는 무색(프레임워크 내부 코드)이다.
-
-## 열린 질문 (그대로 남음)
-
-1. `dependencies` 에 필드명을 남길 것인가 (`plan.md` §7-C, §13-1). `spi` 변경이라 팀 결정이 필요하다.
-2. `ResourceScanException` 을 `api` 로 옮길 것인가 (`plan.md` §9, §13-2). 이 예외는
-   `InfraStruct.run()` 을 타고 사용자에게 올라간다. 사용자가 catch 해야 하는 타입이면 `api` 다.
-   배선 feature(8/22)에서 결론이 날 항목이라 지금은 `internal`.
-3. `Required` Javadoc 과 다이어그램의 자원 예시를 누가 언제 고칠 것인가 (`plan.md` §13-3).
+1. **`dependencies` 에 필드명을 남길 것인가** (`plan.md` §7-C, §13-1). 이번 범위에서는 `dependencies`
+   를 비워 넘기므로 아직 부딪히지 않았다. 3번 PR 에서 `referencesOf` 를 짤 때 결론이 필요하다.
+2. **`ResourceScanException` 을 `api` 로 옮길 것인가** (§13-2). 이번 PR 로 실제로 던지는 지점이
+   6곳 생겼다. 옮긴다면 3번 PR 전이 싸다.
+3. **필드 순회 순서** — `getDeclaredFields()` 는 순서를 보장하지 않는다. §7-A 가 클래스 순서와
+   annotation 순서는 고정했는데 필드는 빠져 있다. `dependencies` 가 `List` 라 3번 PR 에서 결과
+   순서가 흔들릴 수 있다. `spec.md` 「다음 PR 로 넘기는 행동」 13번으로 올려 뒀다.
+4. **`@Resource` 없는 `Class` 값** — 참조처럼 생겼는데 `@Resource` 가 없으면 `plan.md` §8 의 분기상
+   조용히 `config` 로 간다. 에러로 잡을지 3번 PR 전에 정해야 한다.
 
 ## 다음
 
-- **2번 PR** — classgraph 수집, FQCN 정렬, logicalId 검증, 인스턴스화, `kind` 추출, 중복 검사와
-  `fixture/scan/bad/**`. `spec.md` 「다음 PR 로 넘기는 행동」의 1~10번.
-- **3번 PR** — 필드 순회와 config / dependencies / requiredFields, 매크로 annotation 포착,
-  `fixture/scan/good/**`, SpotBugs 예외 목록. 같은 목록의 11~22번.
-- 두 브랜치 모두 직전 브랜치가 아니라 **merge 된 `dev` 에서 딴다** (`plan.md` §1-1).
+**3번 PR** — 필드 순회와 config / dependencies / requiredFields, 매크로 annotation 포착과 그
+fixture. `spec.md` 「다음 PR 로 넘기는 행동」의 1~13번. `merge` 된 `dev` 에서 branch 를 딴다.
