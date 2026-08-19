@@ -38,6 +38,9 @@
 
 ## 다음
 
-- 실제 저장/복원 구현: 상태 파일 경로 결정 + Gson(`TypeAdapter<Kind>` + 불변 정규화) +
-  save→load 라운드트립 테스트. 별도 feature.
-- 생성자에 provider/경로 주입은 그 설계가 선 뒤에 함께 정한다 (지금은 인자 없는 생성자).
+- ~~실제 저장/복원 구현: 상태 파일 경로 결정 + Gson(`TypeAdapter<Kind>` + 불변 정규화) +
+  save→load 라운드트립 테스트. 별도 feature.~~
+  → ✅ 해결: [`2026-08-19-current-state-store-implementation`](../2026-08-19-current-state-store-implementation/summary.md).
+  `TypeAdapter<Kind>` 대신 **전용 DTO record + `Class.forName` & `value()` 매칭** 으로 풀었다.
+- ~~생성자에 provider/경로 주입은 그 설계가 선 뒤에 함께 정한다 (지금은 인자 없는 생성자).~~
+  → ✅ 해결: 생성자가 `CurrentStateStore(Path stateFile)` 로 바뀌었고 **무인자 생성자는 없앴다.**
