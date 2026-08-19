@@ -62,7 +62,8 @@ JSON 에서 키가 통째로 빠진다.
   반쪽짜리로 덮이지 않는다. 임시 파일을 같은 폴더에 만드는 이유는 같은 파일시스템이어야 원자적 이동이
   성립하기 때문이고, 그래서 `AtomicMoveNotSupportedException` 폴백은 넣지 않았다.
 - **`config` 숫자 정규화.** Gson 을 `LONG_OR_DOUBLE` 로 두면 `22` 가 `22.0` 이 되는 문제가 사라지고
-  (`Long`/`Double`), int 범위인 `Long` 만 우리가 `Integer` 로 좁힌다. 왕복이 안정적이다(`roundTripIsStable`).
+  정수=`Long`, 소수=`Double` 로 통일된다. 값의 크기로 `int`/`long` 을 추측하지 않으므로 `int 100` 과
+  `long 100` 이 같은 객체로 돌아온다. 왕복이 안정적이다(`roundTripIsStable`).
 
 ## 스펙과 달라진 점 (3가지)
 
@@ -83,10 +84,16 @@ JSON 에서 키가 통째로 빠진다.
    `Files.move(..., ATOMIC_MOVE)` 를 쓰는 것으로 담보한다.
 2. **쓰기 IO 실패 경로도 테스트하지 않았다.** 권한을 뺏는 테스트는 root 로 도는 CI 에서 무력화되고 OS 마다
    다르게 돈다. 읽기 쪽(`loadThrowsWhenStateFileCannotBeRead`)과 **같은 변환 규칙**을 따르는 것으로 갈음했다.
-3. **⚠️ `long` 왕복 시 타입이 좁아진다.** `long sizeGb = 100` 은 `Integer 100` 으로 돌아온다. JSON 에는
-   타입 정보가 없어 `100` 이 int 였는지 long 이었는지 알 수 없기 때문이다.
-   → **Comparator 는 `config` 값을 타입이 아니라 값으로 비교해야 한다.** 이걸 어기면 아무것도 안 바꿨는데
-   매번 변경으로 잡힌다.
+3. **⚠️ 정수는 모두 `Long` 으로 돌아온다.** JSON 에 `int`/`long` 구분이 없어 선언 타입은 보존되지 않는다.
+   값은 그대로이고 `int`·`long` 어느 쪽으로 넣어도 같은 객체로 돌아오므로 `Comparator` 는 손댈 필요가 없다.
+   → 대신 **`DesiredStateCreator` 가 같은 정규 타입을 써야 한다.** desired 는 파일을 거치지 않고 바로
+   Comparator 로 가므로, `int port = 22` 를 그대로 오토박싱해 `Integer 22` 를 넣으면 아무것도 안 바꿨는데
+   매번 변경으로 잡힌다. 스텁 Javadoc 에 명시해 두었다. (프로바이더의 `Applier` 가 만든 current 는 파일을
+   왕복하며 정규화되므로 필수는 아니다.) 이 약속 자체를 구조로 없애는 방안은 `docs/plan.md` §9 참조.
+
+   > **2026-08-20 개정.** 원래는 int 범위 정수를 `Integer` 로 좁혔고, 그 탓에 `long sizeGb = 100` 이
+   > `Integer 100` 으로 돌아와 **apply 해도 사라지지 않는 유령 diff** 가 났다. `Long` 통일로 바꿔
+   > `int`·`long` 양쪽을 모두 맞췄다 (plan §4.5, `CONVENTIONS.md` §9.3).
 4. **`config` 의 중첩 값(객체·배열)은 정규화하지 않는다.** 스키마상 스칼라만 오기로 되어 있고, 막는 것은
    Validator 의 몫이다. 중첩 값이 오면 Gson 이 준 그대로(`LinkedTreeMap`/`ArrayList`) 들어간다.
 5. **동시 접근(락), 원격 백엔드, 스키마 마이그레이션은 범위 밖이다.** 스키마가 바뀌면 `version` 을 올리고

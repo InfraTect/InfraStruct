@@ -137,7 +137,7 @@ private static final Gson GSON =
 
 | 설정 | 왜 |
 |---|---|
-| `LONG_OR_DOUBLE` | 기본값(`DOUBLE`)이면 `Object` 자리의 `22` 가 `22.0` 으로 온다. 이 정책은 소수부가 없으면 `Long`, 있으면 `Double` 로 준다 → plan §4.5 정규화 규칙의 절반을 Gson 이 해준다. 나머지 절반(`Long` → int 범위면 `Integer`)만 우리가 한다 |
+| `LONG_OR_DOUBLE` | 기본값(`DOUBLE`)이면 `Object` 자리의 `22` 가 `22.0` 으로 온다. 이 정책은 소수부가 없으면 `Long`, 있으면 `Double` 로 준다 → §4.4 의 정규 타입(정수=`Long`, 소수=`Double`)을 Gson 이 그대로 만들어 준다 |
 | `setPrettyPrinting` | 상태 파일은 **사람이 읽는 물건**이다(plan §4.2). 대신 테스트는 문자열 매칭이 아니라 `JsonParser` 로 파싱해 검증한다 — 포맷이 바뀌어도 안 깨지게 |
 | `serializeNulls` 안 씀 | 기본값(null 필드 생략)이라 `physicalId` 가 null 이면 JSON 에서 키가 통째로 빠진다(plan §3) |
 
@@ -304,8 +304,13 @@ private Kind restoreKind(String kindType, String kindValue) {
 
 ### 4.4 `config` 값 정규화 (`normalizeConfig`) — plan §4.5
 
-Gson 이 `LONG_OR_DOUBLE` 로 `Long`/`Double` 까지 만들어 준 상태에서, **`Long` 중 int 범위인 것만
-`Integer` 로 좁힌다.**
+**정수는 `Long`, 소수는 `Double` 로 통일한다.** Gson 의 `LONG_OR_DOUBLE` 이 이미 그 타입을 주므로
+숫자는 손대지 않고 그대로 통과시킨다 — 이 메서드가 실제로 하는 일은 `null` 값을 걸러내는 것뿐이다.
+
+값의 크기로 int/long 을 추측하지 **않는다.** JSON 에는 그 구분이 없어 되살릴 수 없고, 추측해서
+`Integer` 로 좁히면 `long sizeGb = 100` 이 `Integer 100` 으로 돌아와 `Comparator` 의
+`Objects.equals` 가 매번 UPDATE 를 만든다. apply 해도 같은 값이 다시 저장되므로 **영원히 사라지지 않는
+유령 diff** 다. 없는 구분을 복원하는 대신 한쪽으로 통일해 이 문제를 원천 제거한다.
 
 ```java
 private Map<String, Object> normalizeConfig(Map<String, Object> raw) {
@@ -316,9 +321,6 @@ private Map<String, Object> normalizeConfig(Map<String, Object> raw) {
             throw new StateStoreException(
                     "config 값이 null 이다(key=" + e.getKey() + "): " + stateFile);
         }
-        if (value instanceof Long l && l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) {
-            value = l.intValue();
-        }
         normalized.put(e.getKey(), value);
     }
     return normalized;
@@ -327,14 +329,17 @@ private Map<String, Object> normalizeConfig(Map<String, Object> raw) {
 
 | JSON | Gson(LONG_OR_DOUBLE) | 정규화 후 |
 |---|---|---|
-| `22` | `Long 22` | **`Integer 22`** |
+| `22` | `Long 22` | `Long 22` |
 | `3000000000` | `Long 3000000000` | `Long 3000000000` |
 | `22.5` | `Double 22.5` | `Double 22.5` |
 | `"t3.micro"` | `String` | 그대로 |
 | `true` | `Boolean` | 그대로 |
 | `null` | `null` | **예외** (`Map.copyOf` 가 맥락 없는 NPE 를 던지기 전에 우리가 먼저 막는다) |
 
-`Integer` 를 우선하는 이유와 남는 한계(`long sizeGb = 100` → `Integer 100`)는 plan §4.5 그대로다.
+짝이 되는 규칙: **`DesiredStateCreator` 도 config 를 채울 때 같은 정규 타입을 써야 한다.**
+`int port = 22` 를 그대로 오토박싱하면 `Integer 22` 라, 저장소만 고치면 반대 방향으로 같은 유령 diff 가
+생긴다. 해당 스텁 Javadoc 에 못 박아 두었다.
+
 스칼라가 아닌 값(중첩 객체·배열)은 **정규화하지 않고 Gson 이 준 그대로 넣는다** — §7 한계 참조.
 
 ### 4.5 `save()` — 원자적 쓰기 (plan §4.4)
@@ -421,7 +426,7 @@ private ResourceEntry toEntry(CurrentResourceState state) {
 - save() 한 자원을 load() 하면 모든 필드가 그대로 돌아온다
 - 왕복한 kind 는 원래 enum 상수 그 자체다
 - physicalId 가 null 인 자원도 왕복하고 저장된 JSON 에는 그 키가 없다
-- config 의 숫자는 Integer/Long/Double 로 정규화되어 돌아온다
+- config 의 숫자는 Long/Double 로 정규화되어 돌아온다
 - 왕복한 config 와 dependencies 는 불변이고 requiredFields 는 비어 있다
 - 자원이 여럿이면 저장 순서 그대로 복원되고 빈 목록도 왕복한다
 - save() 를 다시 하면 마지막 상태만 남는다
@@ -605,19 +610,21 @@ Then   그 상수가 그대로 복원된다  ← name() 으로 찾는 구현이�
 ```
 Given  config = { small: 22 (int), big: 3_000_000_000L (long), ratio: 0.5 (double) }
 When   save → load
-Then   small 은 Integer 22, big 은 Long 3000000000, ratio 는 Double 0.5
+Then   small 은 Long 22, big 은 Long 3000000000, ratio 는 Double 0.5
 ```
 
 테스트 3개로 쪼갠다 — 실패했을 때 어느 규칙이 깨졌는지 바로 보이게:
 
 | # | 테스트 | 단언 |
 |---|---|---|
-| 1 | `smallIntegerStaysInteger` | `assertThat(config.get("small")).isEqualTo(22).isInstanceOf(Integer.class)` |
-| 2 | `numberBeyondIntRangeBecomesLong` | `isEqualTo(3_000_000_000L).isInstanceOf(Long.class)` |
+| 1 | `smallIntegerBecomesLong` | `assertThat(config.get("small")).isEqualTo(22L).isInstanceOf(Long.class)` |
+| 2 | `numberBeyondIntRangeStaysLong` | `isEqualTo(3_000_000_000L).isInstanceOf(Long.class)` |
 | 3 | `decimalStaysDouble` | `isEqualTo(0.5).isInstanceOf(Double.class)` |
+| 4 | `intAndLongOfSameValueRestoreIdentically` | `int 100` 과 `long 100` 을 각각 왕복시켜 두 결과가 `isEqualTo` |
 
-> ⚠️ `isEqualTo(22)` 만으로는 부족하다 — AssertJ 의 숫자 비교는 타입을 눈감아 줄 수 있으므로
+> ⚠️ `isEqualTo` 만으로는 부족하다 — AssertJ 의 숫자 비교는 타입을 눈감아 줄 수 있으므로
 > **`isInstanceOf` 를 반드시 함께 건다.** 이 테스트가 없으면 `22.0` 회귀를 잡지 못한다.
+> 4번은 타입이 아니라 **유령 diff 가 안 생긴다**는 결론을 직접 고정한다.
 
 추가 케이스 `roundTripIsStable`: `save → load → save → load` 를 두 번 돌려 두 번째 결과가
 첫 번째와 같은지 본다. plan §4.5 의 "왕복이 **안정적**이다" 보장 그 자체다.
@@ -768,8 +775,9 @@ DTO 변환이 파일을 건드리기 전에 끝나므로.
 3. **`config` 의 중첩 값(객체·배열).** 스키마상 스칼라만 오기로 되어 있다(plan §4.6 스킴 ②-2).
    중첩 값이 와도 예외를 던지지 않고 Gson 이 준 그대로(`LinkedTreeMap`/`ArrayList`) 넣는다.
    막는 것은 Validator 의 몫이고, 여기서 막으면 상태 저장소가 스캐너의 규칙을 이중으로 강제하게 된다.
-4. **`long` 왕복 시 타입 손실.** `long sizeGb = 100` 은 `Integer 100` 으로 돌아온다(plan §4.5).
-   **Comparator 는 `config` 값을 타입이 아니라 값으로 비교해야 한다** — `summary.md` 에 반드시 남긴다.
+4. **`int`/`long` 구분 소실.** JSON 에 그 구분이 없으므로 정수는 모두 `Long` 으로 돌아온다(§4.4).
+   값은 보존되고 `Comparator` 도 어긋나지 않으므로 실질적 손실은 없다. 단 **`DesiredStateCreator` 가
+   같은 정규 타입을 쓴다는 전제**가 깨지면 유령 diff 가 살아난다 — 해당 스텁 Javadoc 에 명시했다.
 5. **동시 접근(락), 원격 백엔드, 스키마 마이그레이션, `InfraStruct.run()` 배선** — plan §6 그대로.
 6. **예외를 사용자용 메시지로 바꾸는 일** — 경계(`InfraStruct.run()`)의 몫이다(plan §4.4).
 

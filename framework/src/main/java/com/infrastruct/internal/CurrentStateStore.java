@@ -246,6 +246,23 @@ public final class CurrentStateStore {
                 "kindValue 에 해당하는 enum 상수가 없다(" + kindType + "." + kindValue + "): " + stateFile);
     }
 
+    /**
+     * 복원된 {@code config} 값을 정규 타입으로 통일한다 — 정수는 {@code Long}, 소수는 {@code Double}.
+     *
+     * <p>JSON 에는 int/long 구분이 없으므로 되살릴 수 없다. 값의 크기로 추측해 {@code Integer} 로 좁히면 {@code long sizeGb =
+     * 100} 이 {@code Integer 100} 으로 돌아와, {@code Comparator} 의 {@code Objects.equals} 가 매번 UPDATE 를
+     * 만들어 낸다(apply 해도 다시 같은 값이 저장되므로 사라지지 않는다). 그래서 없는 구분을 복원하는 대신 한쪽으로 통일한다.
+     *
+     * <p>Gson 의 {@code LONG_OR_DOUBLE} 이 이미 {@code Long}/{@code Double} 을 주므로 여기서 숫자를 손댈 일은 없다. 이
+     * 메서드가 실제로 하는 일은 {@code null} 값을 걸러내는 것뿐이다.
+     *
+     * <p>짝이 되는 규칙: {@code DesiredStateCreator} 도 config 를 채울 때 같은 정규 타입을 써야 한다. 한쪽만 지키면 반대 방향으로 유령
+     * diff 가 생긴다.
+     *
+     * @param raw Gson 이 돌려준 config 맵
+     * @return 정규 타입으로 통일된 새 맵
+     * @throws StateStoreException 값이 {@code null} 인 항목이 있는 경우
+     */
     private Map<String, Object> normalizeConfig(Map<String, Object> raw) {
         Map<String, Object> normalized = new LinkedHashMap<>(raw.size());
         for (Map.Entry<String, Object> e : raw.entrySet()) {
@@ -254,9 +271,6 @@ public final class CurrentStateStore {
                 // Map.copyOf 가 맥락 없는 NPE 를 던지기 전에 키 이름과 경로를 담아 먼저 막는다.
                 throw new StateStoreException(
                         "config 값이 null 이다(key=" + e.getKey() + "): " + stateFile);
-            }
-            if (value instanceof Long l && l >= Integer.MIN_VALUE && l <= Integer.MAX_VALUE) {
-                value = l.intValue();
             }
             normalized.put(e.getKey(), value);
         }

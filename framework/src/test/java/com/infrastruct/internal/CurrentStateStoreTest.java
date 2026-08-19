@@ -75,7 +75,8 @@ class CurrentStateStoreTest {
         return new CurrentResourceState(
                 TestKind.EC2,
                 logicalId,
-                Map.of("instanceType", "t3.micro", "port", 22, "enabled", true),
+                // 정수는 Long 이 정규 타입이다 — config 를 채우는 쪽이 지켜야 하는 규칙(§4.4)을 픽스처도 따른다.
+                Map.of("instanceType", "t3.micro", "port", 22L, "enabled", true),
                 List.of("vpc.myVpc"),
                 Set.of(),
                 physicalId);
@@ -175,21 +176,33 @@ class CurrentStateStoreTest {
     }
 
     @Test
-    void smallIntegerStaysInteger() {
+    void smallIntegerBecomesLong() {
         store.save(resources(resourceWithConfig(Map.of("small", 22))));
 
         assertThat(store.load().resources().get(0).config().get("small"))
-                .isEqualTo(22)
-                .isInstanceOf(Integer.class);
+                .isEqualTo(22L)
+                .isInstanceOf(Long.class);
     }
 
     @Test
-    void numberBeyondIntRangeBecomesLong() {
+    void numberBeyondIntRangeStaysLong() {
         store.save(resources(resourceWithConfig(Map.of("big", 3_000_000_000L))));
 
         assertThat(store.load().resources().get(0).config().get("big"))
                 .isEqualTo(3_000_000_000L)
                 .isInstanceOf(Long.class);
+    }
+
+    @Test
+    void intAndLongOfSameValueRestoreIdentically() {
+        store.save(resources(resourceWithConfig(Map.of("size", 100))));
+        Object fromInt = store.load().resources().get(0).config().get("size");
+
+        store.save(resources(resourceWithConfig(Map.of("size", 100L))));
+        Object fromLong = store.load().resources().get(0).config().get("size");
+
+        // 선언 타입이 int 든 long 이든 같은 값이면 같은 객체로 돌아와야 Comparator 가 유령 diff 를 만들지 않는다.
+        assertThat(fromInt).isEqualTo(fromLong);
     }
 
     @Test
