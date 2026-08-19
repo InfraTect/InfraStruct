@@ -125,6 +125,7 @@ import org.junit.jupiter.api.Test;
 
 - `if`·`for`·`while` 은 **한 줄짜리라도 중괄호**를 쓴다 — 나중에 줄을 추가하다 생기는 버그 차단.
 - **빈 `catch` 금지.** 의도적으로 무시하는 경우라면 예외 변수명을 `ignored` 또는 `expected` 로 둔다.
+  (언제 잡고 언제 던질지는 **§8 예외 처리** 참조)
 - 문자열 비교는 `==` 이 아니라 `equals()` — 상수를 앞에 두는 편(`"a".equals(x)`)을 권장.
 - `equals()` 를 재정의하면 `hashCode()` 도 함께 재정의한다.
 - `switch` 의 fall-through 금지, `default` 는 마지막에.
@@ -294,7 +295,166 @@ public String getName() { ... }
 
 ---
 
-## 8. 규칙을 바꾸고 싶을 때
+## 8. 예외 처리
+
+도구가 강제하는 것은 두 가지뿐이다 — Checkstyle 의 `IllegalThrows`(`RuntimeException`·
+`Error`·`Throwable` 을 직접 throw 하는 것 금지)와 `EmptyCatchBlock`(빈 catch 금지, §5).
+나머지는 관례다. 그럼에도 일관성이 중요한 이유는, 프레임워크에서 **실패를 사용자에게 전달하는
+방식이 곧 사용성**이기 때문이다. 사용자는 잘 될 때보다 안 될 때 우리 코드를 더 오래 본다.
+
+### 8.1 예외냐, 결과 객체냐
+
+둘 다 쓴다. **모아서 보고할 것이 있느냐**로 가른다.
+
+| 방식 | 언제 | 왜 | 사례 |
+|---|---|---|---|
+| **예외** | 더 진행할 수 없다 | 첫 실패에서 멈춰야 하고, 뒤 단계로 넘길 값이 없다 | `ResourceScanException`, `Comparator`·`ResourceChange` 의 `IllegalArgumentException` |
+| **결과 객체** | 문제를 여러 개 모아 보고한다 | 위반 10개를 한 번에 보여줘야 사용자가 10번 고치지 않는다 | `Validator` → 검증 결과 객체 |
+
+검증이 결과 객체인 이유가 이것이다. 반대로 상태 파일이 깨졌으면 "깨진 항목 목록"을 모을
+수조차 없다 — 파싱 자체가 안 되기 때문이다. 그런 실패는 예외다.
+
+### 8.2 unchecked 를 기본으로 한다
+
+`RuntimeException` 을 상속한다. 기준은 **"호출부가 잡아서 할 수 있는 일이 있는가"** 다.
+자원 선언이 잘못됐거나 상태 파일이 깨진 것은 **고쳐야 할 문제**이지 코드로 복구할 조건이
+아니다. checked 로 강제하면 호출부마다 할 일 없는 `try/catch` 만 늘어난다.
+
+### 8.3 전용 예외 — 어디에, 어떤 모양으로
+
+- **`internal` 에 둔다.** 판별 규칙은 *"엔진 **밖의** 누군가가 이 타입을 코드에서 직접
+  쥐는가"*(`CONTRIBUTING.md` §2)이고, 예외를 잡는 쪽은 엔진 자신이다. `spi` 에 두면
+  프로바이더가 인질이 되어 나중에 고칠 수 없다.
+- **이름은 `<모듈>Exception`** — `ResourceScanException`, `StateStoreException`.
+- **생성자 두 개**: `(String message)` 와 `(String message, Throwable cause)`.
+  아래에서 올라온 예외는 삼키지 말고 `cause` 로 붙인다 — 원인을 잃으면 사용자가 진짜 이유를
+  못 본다.
+- **`serialVersionUID` 를 넣는다.**
+- **메시지에 "사용자가 고쳐야 할 대상"을 반드시 담는다** — 문제가 된 클래스의 FQCN, 또는
+  파일 경로. 어디를 봐야 하는지 메시지만 읽고 알 수 있어야 한다.
+
+```java
+public class StateStoreException extends RuntimeException {
+    private static final long serialVersionUID = 1L;
+
+    public StateStoreException(String message) {
+        super(message);
+    }
+
+    public StateStoreException(String message, Throwable cause) {
+        super(message, cause);
+    }
+}
+```
+
+### 8.4 `catch` 는 변환용이다 — 문제를 없애는 데 쓰지 않는다
+
+메서드 안의 `catch` 는 **저수준 예외에 맥락을 붙여 다시 던지는** 용도다.
+
+```java
+try {
+    json = Files.readString(stateFile);
+} catch (IOException e) {
+    throw new StateStoreException("상태 파일을 읽을 수 없다: " + stateFile, e);
+}
+```
+
+`IOException` 은 "파일에 뭔가 안 됨"만 안다. 경로와 도메인 의미("상태 파일")를 아는 곳은
+여기뿐이므로 **여기서 잡아야 한다.**
+
+반대로 예외를 **사라지게 하는** `catch` 는 쓰지 않는다. 판단 기준은 하나다 —
+**`catch` 블록 안에서 실제로 내릴 결정이 있는가.** 없으면 잡으면 안 된다. 엔진 안쪽은 대개
+"사용자에게 어떻게 보여줄지, 중단할지 계속할지"를 모르기 때문에 결정을 내릴 수 없고,
+모르는 쪽이 내린 결정은 틀린다.
+
+삼켜도 되는 경우는 **그것이 에러가 아니라 도메인 사실일 때**뿐이다.
+
+```java
+catch (NoSuchFileException ignored) {
+    return new CurrentResources(List.of());   // "파일 없음" = 아직 아무것도 apply 하지 않음
+}
+```
+
+이때 변수명을 `ignored`(또는 `expected`)로 두는 것은 Checkstyle 이 강제한다(§5).
+"의도적으로 무시한다"를 선언하게 만들어, 삼키기가 예외적인 일임을 코드에 남기는 장치다.
+
+### 8.5 경계에서 한 번 잡는다
+
+엔진 안에서는 던지고, **사용자 코드와 만나는 경계에서 한 번** 잡아 사람이 읽을 메시지로
+바꾼다. 그 경계는 `InfraStruct.run()` 이다.
+
+```
+사용자 main()
+    ↓
+InfraStruct.run()      ← 여기서 잡아 사용자용 메시지로 변환
+    ↓
+엔진 내부 모듈들        ← 던지기만 한다
+```
+
+**라이브러리는 프로세스를 죽이지 않는다.** `System.exit()` 는 앱의 결정을 빼앗는다.
+스택 트레이스가 그대로 사용자에게 노출되는 것도 최종 모습이 아니다 — Terraform 이 Go 스택
+트레이스 대신 `Error: ...` 한 줄을 보여주는 것과 같은 이유다.
+
+### 8.6 타입은 하나로 시작하고, 잡는 쪽이 갈라질 때 쪼갠다
+
+모듈당 예외 하나로 시작한다. 원인이 여러 갈래여도 메시지와 `cause` 로 구분한다.
+나눠야 할 시점은 **`catch` 를 다르게 쓸 호출부가 실제로 생겼을 때**다. 예외를 나눠서 얻는
+것은 오직 "호출부가 다르게 잡을 수 있다" 하나뿐이고, 그 호출부가 없으면 어느 축으로 나눌지
+(원인의 성격? 복구 가능성? 발생 단계?) 고를 근거도 없다.
+
+미루는 쪽이 안전한 이유는 Java 의 비대칭성 때문이다.
+
+- **하나 → 여럿**: 하위 타입을 추가해도 기존 `catch (ModuleException e)` 가 그대로 잡는다.
+  **안 깨진다.**
+- **여럿 → 하나**: `catch (SpecificException e)` 를 쓰던 코드가 컴파일 에러가 난다. **깨진다.**
+
+되돌릴 수 있는 방향에서 시작한다.
+
+---
+
+## 9. 상태로 저장되는 값의 타입 제약
+
+`CurrentStateStore` 가 자원 상태를 **JSON 파일로 저장하고 다시 읽는다.** 그래서 자원이 들고
+있는 값은 "JSON 으로 나갔다 돌아올 수 있는 것"이어야 한다. 아래는 그 왕복에서 나오는 제약이라,
+프로바이더 작성자에게도 해당된다.
+
+### 9.1 `Kind` 구현체는 enum 이어야 한다
+
+`Kind` 는 인터페이스이고 JSON 에는 문자열밖에 남길 수 없다. 읽을 때 "어느 구현의 어느
+값이었는지"를 되찾으려면 **값의 집합이 닫혀 있어야** 한다 — 그것이 enum 이다.
+
+```java
+enum AwsKind implements Kind {
+    EC2, VPC;
+
+    @Override
+    public String value() {
+        return name();
+    }
+}
+```
+
+enum 이 아닌 `Kind` 구현체는 상태 파일에서 복원할 수 없고, `CurrentStateStore` 가 예외를
+던진다.
+
+### 9.2 `config` 에는 스칼라만 — 자원 참조는 `dependencies` 로
+
+이미 `ResourceState` 의 계약이지만 왕복 관점에서도 같은 결론이라 여기 적는다. 다른 자원을
+가리키는 참조가 `config` 에 섞이면 Comparator 가 **"값이 바뀐 것"과 "의존 관계가 바뀐 것"을
+구분하지 못한다.**
+
+### 9.3 숫자는 왕복에서 Java 타입이 보존되지 않는다
+
+JSON 의 숫자에는 `int`/`long`/`double` 구분이 없다. `CurrentStateStore` 는 읽을 때 소수부와
+범위를 보고 `Integer`/`Long`/`Double` 로 정규화하지만, **`long` 인데 값이 작으면 `Integer` 로
+돌아온다.** 값은 같고 타입만 달라진다.
+
+→ **`config` 값을 비교하는 코드는 숫자를 타입이 아니라 값으로 비교해야 한다.**
+`Object.equals` 로 비교하면 `Long 100` 과 `Integer 100` 이 다르다고 나온다.
+
+---
+
+## 10. 규칙을 바꾸고 싶을 때
 
 규칙이 실제 코드와 맞지 않는다고 판단되면, **좁은 예외부터** 시도한다.
 

@@ -134,6 +134,10 @@ InfraStruct/
   - 스타 임포트(`import java.util.*`) 금지, 안 쓰는/중복 import 금지
   - `if`·`for` 는 한 줄이라도 중괄호 사용, 빈 catch 금지(의도된 무시는 변수명을 `ignored`/`expected` 로)
   - static 멤버만 있는 유틸 클래스는 private 생성자로 인스턴스화 차단
+- **예외는 `internal` 에 전용 타입으로, unchecked.** 메시지에 사용자가 고쳐야 할 대상(FQCN·파일 경로)을 반드시 담는다.
+  `catch` 는 맥락을 붙여 **다시 던지는** 용도 — 문제를 없애는 데 쓰지 않는다. (`CONVENTIONS.md` §8)
+  - 문제를 **모아서** 보고해야 하면 예외 대신 결과 객체 (검증이 그렇다).
+- **자원이 든 값은 상태 파일(JSON)로 왕복 가능해야 한다.** `Kind` 는 enum, `config` 는 스칼라만. (`CONVENTIONS.md` §9)
 - 인코딩 **UTF-8**, 줄바꿈 **LF** (`.editorconfig` · `.gitattributes` 가 강제).
 - 주석·Javadoc 은 **한국어**로, "무엇"보다 **"왜"** 를 적는다.
 - 커밋 전 반드시 `spotlessApply` — 안 하면 CI 의 `spotlessCheck` 에서 막힌다.
