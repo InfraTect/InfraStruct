@@ -1,9 +1,9 @@
-# summary: resource-scanner (발견과 검증)
+# summary: resource-scanner (발견·검증 + 필드·참조 추출)
 
 ## 무엇을 만들었나
 
-1번 PR 이 시그니처만 못 박아 둔 `ResourceScanner.scan()` 의 본문을, `plan.md` §1-1 의 2번 범위까지
-채웠다. 자원을 찾아내고 logicalId 와 `kind` 를 확정하고 잘못된 선언을 거부하는 데까지다.
+1번 PR(#41)이 시그니처만 못 박아 둔 `ResourceScanner.scan()` 의 본문 전체다. 원래 2번(발견과
+검증), 3번(필드와 참조 추출)으로 나눌 계획이었으나 **한 PR 로 합쳤다** (`plan.md` §1-1).
 
 | 단계 | 하는 일 | 근거 |
 |---|---|---|
@@ -12,41 +12,38 @@
 | logicalId | `@Resource(name)` 을 읽고 빈 값, 공백뿐인 값, 중간 공백을 거부한다 | §9 |
 | 인스턴스화 | 인자 없는 생성자로 만든다. 사용자의 initializer block 이 이때 실행된다 | §8 |
 | kind | `ProviderResource` 인지 확인하고 `kind` 를 읽는다. null 이면 거부한다 | §7-D |
+| 필드 순회 | 자식부터 부모로, 클래스 안에서는 필드명순. `kind`/`provider`/static/synthetic 은 skip, shadowing 은 자식이 이긴다 | §7-A, §7-B, §7-F |
+| config | 참조가 아닌 non-null 값. null 필드는 키 자체를 안 넣는다 (`Map.copyOf` 제약) | §6 |
+| dependencies | `Class` 값과 `Class` 컬렉션을 logicalId 로 푼다. `referencesOf` 메서드로 격리 | §7-C |
+| requiredFields | `@Required` 붙은 필드 이름 | §8 |
+| annotation 포착 | `@Behavior` 달린 것만, type 이름순 정렬 | §7-A |
 | 중복 검사 | 같은 logicalId 를 쓴 두 클래스를 **둘 다** 메시지에 담아 거부한다 | §7-E |
 
-`config`, `dependencies`, `requiredFields`, `capturedAnnotations` 는 아직 비운 채로 넘긴다. 필드
-순회는 3번 PR 이고, `scan()` 안에 그 자리 TODO 를 남겨 뒀다.
+에러는 8종이고 전부 `ResourceScanException`(§9). test 33개(신규 26개), `./gradlew check` 통과.
 
-test 18개(신규 11개), 전체 `./gradlew check` 통과.
+## PR 을 왜 합쳤나
 
-## Test fixture 를 이번에 넣었다
+2번이 push 되기 전이라 지킬 리뷰 이력이 없었고, 이 repo 는 승인 3개가 필요해 PR 을 쪼갤수록
+대기가 곱으로 늘어난다. 줄수의 대부분은 fixture 와 test 와 docs 이고 main 코드는
+`ResourceScanner` 한 파일이라, 리뷰 부담은 commit 경계(fixture → 구현 → 문서)로 지킨다.
 
-`framework/src/test/java/com/infrastruct/fixture/scan/` 아래에 test 전용 자원 계층을 만들었다.
-framework 는 프로바이더를 의존하지 않으므로 `AwsVpc` 같은 것을 쓸 수 없는데, **쓰지 않아도 된다는
-것 자체가 이 설계의 주장**이다.
+## 통합하면서 결론이 난 미결들
 
-- 공통 토대 — `ScanKind`, `ScanProvider`, `ScanResource`
-- 자원 타입 4종 — `ScanVpc`, `ScanSubnet`, `ScanEc2`, `ScanRds`
-- 정상 자원 5개 (`good/`) — `alphaVpc`, `betaSubnet`, `gammaEc2`, `deltaRds`, `epsilonSubnet`
-- 깨진 자원 7 package (`bad/`) — 사유마다 격리했다. 한 package 에 모으면 하나를 스캔할 때 다른
-  것도 같이 걸려서 어느 검증이 예외를 냈는지 구분할 수 없다
-
-`bad/**` 를 사유별로 쪼갠 것이 실제로 값을 했다. basePackage 격리가 되지 않으면 에러 test 6개가
-서로를 오염시켜, 어느 검증이 동작하는지 알 수 없는 상태로 green 이 된다.
-
-## plan 에서 두 가지가 앞당겨졌다
-
-`plan.md` §1-1 은 `good/**` 와 SpotBugs 예외 목록을 3번 PR 로 잡았는데, 둘 다 이번으로 옮겼다.
-문서도 함께 고쳤다.
-
-**`good/**`** — 자원 발견, 순서 고정, `kind` 추출 test 가 전부 `good` 의 자원 5종을 기대값으로 쓴다.
-fixture 없이는 red 를 만들 수 없다. 3번 PR 에 남는 fixture 는 매크로 annotation 3종과 핸들러뿐이다.
-
-**`config/spotbugs/exclude.xml`** — 억제 사유가 `setAccessible` 이 아니었다. fixture 의 public
-필드를 SpotBugs 가 "안 읽는 필드"(`UrF`, `UuF`)로 오탐한다. 값은 initializer block 이 채우고 읽는
-쪽은 스캐너의 reflection 이라 정적 분석에는 둘 다 안 보인다. `ProviderResource` 가
-`@SuppressFBWarnings` 로 억제한 것과 같은 건인데, fixture 는 8개 파일에 같은 패턴이 반복되어
-파일로 올렸다. 그 파일의 주석이 "한 곳뿐이면 annotation, 반복되면 여기"라는 기준을 남긴다.
+1. **`dependencies` 는 `List<String>` 을 따른다** (`plan.md` §7-C). `DependencyDiff` Javadoc 과
+   `Comparator.diffDependencies` 가 이미 "field 자리 = 대상 logicalId" 로 돌고 있는 계약이라
+   맞추는 쪽으로 결정했다. 추출 로직은 `referencesOf` 하나로 격리해 타입이 바뀌면 그 메서드와
+   test 만 고치면 된다.
+2. **`ResourceScanException` 은 `internal` 에 남는다.** #44 가 신설한 `CONVENTIONS.md` §8.3 이
+   확정했다. 생성자 2개, `serialVersionUID`, FQCN 메시지 요구도 이미 충족한다.
+3. **필드 순회 순서를 필드명 사전순으로 고정했다** (§7-A). `getDeclaredFields()` 는 순서 보장이
+   없어, 안 고정하면 `dependencies` 의 원소 순서가 머신마다 달라진다. `ScanEc2` 에 참조 필드를
+   2개(`subnet`, `vpc`) 둬서 정렬이 실제로 동작하는지 반증한다.
+4. **`@Resource` 없는 `Class` 참조는 스캔 시점에 거부한다** (§9 의 8번째 에러). 조용히 config 로
+   흘리면 참조 오타가 숨고 `Class` 객체가 state 파일 직렬화에서 터진다. `bad/dangling/` 이 반증
+   fixture 다.
+5. **참조가 아닌 `Map` 값은 config 로 간다.** 프로바이더 쪽에 tag 를 `List<Tag>` 에서
+   `Map<key, value>` 로 바꾸자는 제안이 있는데, 어느 쪽으로 결정되든 스캐너가 막히지 않도록
+   `gammaEc2` 의 `tags` 로 동작을 고정해 뒀다.
 
 ## 판단 하나
 
@@ -55,17 +52,13 @@ fixture 없이는 red 를 만들 수 없다. 3번 PR 에 남는 fixture 는 매�
 
 ## 남은 것
 
-1. **`dependencies` 에 필드명을 남길 것인가** (`plan.md` §7-C, §13-1). 이번 범위에서는 `dependencies`
-   를 비워 넘기므로 아직 부딪히지 않았다. 3번 PR 에서 `referencesOf` 를 짤 때 결론이 필요하다.
-2. **`ResourceScanException` 을 `api` 로 옮길 것인가** (§13-2). 이번 PR 로 실제로 던지는 지점이
-   6곳 생겼다. 옮긴다면 3번 PR 전이 싸다.
-3. **필드 순회 순서** — `getDeclaredFields()` 는 순서를 보장하지 않는다. §7-A 가 클래스 순서와
-   annotation 순서는 고정했는데 필드는 빠져 있다. `dependencies` 가 `List` 라 3번 PR 에서 결과
-   순서가 흔들릴 수 있다. `spec.md` 「다음 PR 로 넘기는 행동」 13번으로 올려 뒀다.
-4. **`@Resource` 없는 `Class` 값** — 참조처럼 생겼는데 `@Resource` 가 없으면 `plan.md` §8 의 분기상
-   조용히 `config` 로 간다. 에러로 잡을지 3번 PR 전에 정해야 한다.
+1. **`Required` Javadoc 과 다이어그램의 자원 예시** (`plan.md` §13-3). `@Required public Vpc vpc;`
+   는 그대로는 컴파일되지 않는다. 남의 파일이라 이번에도 안 건드렸다.
+2. **`InfraStruct.run()` 배선.** WBS 상 8/22 부터 정연 님 몫. 스캐너는 입력이 준비된 상태다.
+3. **JPMS.** 사용자 코드가 named module 이면 `setAccessible` 이 실패한다. classpath 사용 전제는
+   `plan.md` §14 에 남아 있다.
 
 ## 다음
 
-**3번 PR** — 필드 순회와 config / dependencies / requiredFields, 매크로 annotation 포착과 그
-fixture. `spec.md` 「다음 PR 로 넘기는 행동」의 1~13번. `merge` 된 `dev` 에서 branch 를 딴다.
+`merge` 후 `DesiredStateCreator` 가 `capturedAnnotations` 를 소비하는 feature 로 이어진다.
+스캐너가 넘기는 "지시서"(`CapturedAnnotation`)의 handler 호출이 그쪽 몫이다.
