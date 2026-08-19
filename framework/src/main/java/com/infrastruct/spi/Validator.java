@@ -36,7 +36,8 @@ public abstract class Validator {
      * @return 두 검증에서 발견한 위반을 모두 합친 결과
      * @throws NullPointerException {@code desiredResources}가 {@code null}인 경우
      */
-    public final ValidationResult validate(DesiredResources desiredResources) {//common과 provider둘의 violation들을 합침.
+    public final ValidationResult validate(
+            DesiredResources desiredResources) { // common과 provider둘의 violation들을 합침.
         Objects.requireNonNull(desiredResources, "desiredResources");
 
         ValidationResult common = validateCommon(desiredResources);
@@ -80,7 +81,7 @@ public abstract class Validator {
      */
     protected ValidationResult validateProviderResource(DesiredResources desiredResources) {
         return ValidationResult.valid();
-    }//provider에서 구현 할 것임.
+    } // provider에서 구현 할 것임.
 
     private static void validateResourceIdentities(
             DesiredResources desiredResources, List<Violation> violations) {
