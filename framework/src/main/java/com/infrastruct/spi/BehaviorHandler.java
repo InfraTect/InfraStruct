@@ -13,7 +13,7 @@ import java.lang.annotation.Annotation;
 public interface BehaviorHandler<T extends Annotation> {
 
     /**
-가     * 어노테이션의 효과를 반영한 <b>새 상태</b>를 만들어 돌려준다.
+     * 어노테이션의 효과를 반영한 <b>새 상태</b>를 만들어 돌려준다.
      *
      * <p><b>왜 {@code void} 가 아닌가</b>: {@link ScannedResourceState} 는 불변이라 넘어온 {@code state} 를 고칠 수
      * 없다. 고치는 대신 고쳐진 사본을 돌려주고, 엔진이 그 반환값을 다음 핸들러의 입력으로 이어 붙인다. 그래서 구현은 순수 함수처럼 쓰면 된다 — 넘어온 것과 돌려준 것
