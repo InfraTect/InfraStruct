@@ -1,6 +1,7 @@
 package com.infrastruct.spi;
 
 import com.infrastruct.internal.CapturedAnnotation;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -39,6 +40,27 @@ public final class ScannedResourceState extends ResourceState {
             List<CapturedAnnotation> capturedAnnotations) {
         super(kind, logicalId, config, dependencies, requiredFields);
         this.capturedAnnotations = List.copyOf(capturedAnnotations);
+    }
+
+    /**
+     * {@code config} 에 항목 하나를 더하거나 덮어쓴 <b>새 상태</b>를 돌려준다. 원본은 바뀌지 않는다.
+     *
+     * <p>불변 객체는 고칠 수 없으므로 고치는 대신 고쳐진 사본을 만든다 — {@code "hello".replace('h', 'j')} 가 원본을 그대로 두고 새
+     * 문자열을 주는 것과 같은 관용구다.
+     *
+     * <p><b>왜 있는가</b>: 이것이 없으면 {@link BehaviorHandler} 구현마다 config 를 복사해 넣고 6인자 생성자로 전 필드를 다시 넘겨야
+     * 한다. 핸들러는 {@code capturedAnnotations} 에 관심이 없는데도 손으로 넘겨야 하고, {@code dependencies} 를 빠뜨리면 그 자원의
+     * 의존 관계가 <b>조용히</b> 사라진다.
+     *
+     * @param key 넣을 설정 키
+     * @param value 넣을 값 — 스칼라만 (자원 참조는 {@code dependencies} 로 간다)
+     * @return 해당 항목만 반영된 새 인스턴스
+     */
+    public ScannedResourceState withConfigEntry(String key, Object value) {
+        Map<String, Object> merged = new HashMap<>(config());
+        merged.put(key, value);
+        return new ScannedResourceState(
+                kind(), logicalId(), merged, dependencies(), requiredFields(), capturedAnnotations);
     }
 
     /**
