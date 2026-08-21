@@ -35,5 +35,7 @@
 
 ## 다음(이 브랜치 밖)
 
-- `ScannedResourceState` 가 생기면 `BehaviorHandler.handle` 의 `Object` 를 그 타입으로 좁힌다.
+- ~~`ScannedResourceState` 가 생기면 `BehaviorHandler.handle` 의 `Object` 를 그 타입으로 좁힌다.~~
+  → ✅ 해결 (`fix/behavior-handler-mock-class`): `void handle(T, Object)` → `void handle(T, ScannedResourceState)`.
+  반환형(`void`)은 그대로 열려 있다 — `resource-state-classes` summary 의 "DesiredStateCreator 를 맡는 사람에게" 참고.
 - 실제 매크로 어노테이션/핸들러(`@AllowSSH`, `AllowSshHandler`)는 사용례 — 이 범위 아님.

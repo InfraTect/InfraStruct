@@ -4,6 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
 
 /** {@link BehaviorHandler} 는 매크로 어노테이션의 효과를 자원 상태에 반영하는 제네릭 핸들러 계약이다. */
@@ -20,10 +23,10 @@ class BehaviorHandlerTest {
     /** 픽스처: 넘어온 값을 기록하는 핸들러 구현체. */
     static class RecordingHandler implements BehaviorHandler<FixtureAnno> {
         FixtureAnno received;
-        Object receivedState;
+        ScannedResourceState receivedState;
 
         @Override
-        public void handle(FixtureAnno annotation, Object state) {
+        public void handle(FixtureAnno annotation, ScannedResourceState state) {
             this.received = annotation;
             this.receivedState = state;
         }
@@ -33,7 +36,9 @@ class BehaviorHandlerTest {
     void implementationHandlesAnnotationAndState() {
         RecordingHandler handler = new RecordingHandler();
         FixtureAnno anno = Holder.class.getAnnotation(FixtureAnno.class);
-        Object state = new Object();
+        ScannedResourceState state =
+                new ScannedResourceState(
+                        () -> "test-kind", "res.id", Map.of(), List.of(), Set.of(), List.of());
 
         handler.handle(anno, state);
 

@@ -74,7 +74,7 @@ DesiredStateCreator 를 쓰는 사람이 정하는 편이 맞다.
 | **ResourceScanner** — 이 7종을 리플렉션으로 채운다 (ClassGraph) | 08-14 ~ 08-21 |
 | `CurrentStateStore` 의 `TypeAdapter<Kind>` + **불변 상태의 Gson 역직렬화 대응** | 08-14 전 공유 필요 |
 | `DesiredStateCreator` — `capturedAnnotations` 소비 + `handle` 시그니처 확정 | |
-| `RegisterProvider.validator()` / `applier()` 자리표시자 좁히기 | 각자 작업 후 |
+| ~~`RegisterProvider.applier()`~~ 좁히기 → ✅ `feat/impl-applier-interface` 완료 / `validator()` 는 대기 | 각자 작업 후 |
 
 ### ⚠️ CurrentStateStore 를 맡는 쪽에 먼저 전달할 것
 
@@ -86,9 +86,10 @@ DesiredStateCreator 를 쓰는 사람이 정하는 편이 맞다.
 
 ### DesiredStateCreator 를 맡는 사람에게
 
-`BehaviorHandler.handle` 은 아직 `void handle(T, Object)` 다. 이 자리표시자를 좁히는 것이
-그 작업의 일부가 된다. 다만 상태가 불변이라 **타입만 좁히면 동작하지 않는다** — 핸들러가
-넘겨받은 상태를 고칠 수 없기 때문이다. 반환형까지 함께 정해야 한다:
+`BehaviorHandler.handle` 의 파라미터는 `fix/behavior-handler-mock-class` 에서
+`void handle(T, Object)` → `void handle(T, ScannedResourceState)` 로 좁혔다. 다만 상태가
+불변이라 **파라미터 타입만 좁혀서는 동작하지 않는다** — 핸들러가 넘겨받은 상태를 고칠 수 없기
+때문이다. 반환형은 아직 `void` 이고 이 부분은 그대로 열려 있다. 반환형까지 정하면:
 
 ```java
 ScannedResourceState handle(T annotation, ScannedResourceState state);   // 후보

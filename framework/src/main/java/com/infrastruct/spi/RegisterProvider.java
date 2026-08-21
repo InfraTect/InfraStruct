@@ -45,10 +45,7 @@ public @interface RegisterProvider {
     /**
      * 이 프로바이더의 적용기(applier) 구현 클래스.
      *
-     * <p>상한이 {@code Class<?>} 인 이유: 대상 타입 {@code Applier} 가 아직 없다(다른 브랜치). 생기면 {@code Class<?
-     * extends Applier>} 로 좁힌다.
-     *
-     * @return 적용기 클래스
+     * @return {@link Applier} 를 구현한 적용기 클래스
      */
-    Class<?> applier();
+    Class<? extends Applier> applier();
 }

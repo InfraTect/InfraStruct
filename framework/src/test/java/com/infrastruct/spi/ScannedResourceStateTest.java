@@ -27,7 +27,7 @@ class ScannedResourceStateTest {
     /** 픽스처: 담을 핸들러 클래스. */
     static class FixtureHandler implements BehaviorHandler<Annotation> {
         @Override
-        public void handle(Annotation annotation, Object state) {}
+        public void handle(Annotation annotation, ScannedResourceState state) {}
     }
 
     private static CapturedAnnotation captured() {
