@@ -35,12 +35,9 @@ public @interface RegisterProvider {
     /**
      * 이 프로바이더의 검증기(validator) 구현 클래스.
      *
-     * <p>상한이 {@code Class<?>} 인 이유: 대상 타입 {@code Validator} 가 아직 다른 브랜치에서 구현 중이라 참조할 수 없다. 생기면
-     * {@code Class<? extends Validator>} 로 좁힌다.
-     *
-     * @return 검증기 클래스
+     * @return {@link Validator} 를 상속한 검증기 클래스
      */
-    Class<?> validator();
+    Class<? extends Validator> validator();
 
     /**
      * 이 프로바이더의 적용기(applier) 구현 클래스.
