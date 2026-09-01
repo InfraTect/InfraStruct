@@ -62,6 +62,8 @@ spotless {
 // 실행: ./gradlew spotbugsMain  (리포트: build/reports/spotbugs/main.html)
 spotbugs {
     toolVersion = '4.8.6'
+    // 예외 목록도 룰셋과 같이 레포 루트에 둔다 → 모듈이 늘어나도 같은 규칙을 공유한다.
+    excludeFilter = rootProject.layout.projectDirectory.file('config/spotbugs/exclude.xml').asFile
 }
 
 tasks.named('spotbugsMain') {

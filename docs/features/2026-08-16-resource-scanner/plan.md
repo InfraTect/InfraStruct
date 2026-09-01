@@ -1,20 +1,19 @@
 # plan: resource-scanner
 
-브랜치: `feat/resource-scanner-skeleton`
+브랜치: `feat/resource-scanner-discovery` (1번 PR 은 `feat/resource-scanner-skeleton`)
 
 ## 1. 목표 (무엇을)
 
-**`ResourceScanner` 의 뼈대(스텁).** 공개 시그니처와 전용 예외 타입만 확정하고 본문은 비운다.
+**`ResourceScanner` 의 발견과 검증.** 1번 PR 이 못 박은 시그니처 안을 채워, 자원을 찾아내고
+logicalId 와 `kind` 를 확정하고 잘못된 선언을 거부하는 데까지 간다.
 
 사용자가 `@Resource` 를 붙여 선언한 클래스를 reflection 으로 읽어 `ScannedResources` 로 바꾸는 것이
 이 모듈의 최종 목표다. 파이프라인의 입구이고, 지금 이것이 없어서 뒤 단계 모듈의 test 가 전부 입력을
-손으로 지어내고 있다. 이 문서는 최종 형태까지의 설계를 모두 담되, **이번 PR 의 산출물은 그중 뼈대까지**다.
+손으로 지어내고 있다. 이 문서는 최종 형태까지의 설계를 모두 담되, **이번 PR 의 산출물은 그중
+발견과 검증까지**다. 필드에서 값을 꺼내는 것은 3번 PR 이다.
 
 `ScannedResources` 의 Javadoc 이 이미 `ResourceScanner.scan()` 을 반환 타입 계약으로 못 박아 두었으므로,
 클래스 이름과 메서드 이름은 이번에 새로 정하는 것이 아니라 **이미 정해진 것을 따르는 것**이다.
-
-`InfraStruct` · `CurrentStateStore` · `DesiredStateCreator` 뼈대와 같은 성격이다. 시그니처를 먼저
-못 박아 호출부를 언블록하고, 본문은 뒤따르는 PR 에서 채운다.
 
 ### 1-1. PR 분할
 
@@ -22,12 +21,17 @@
 
 | PR | 범위 | 산출물 |
 |---|---|---|
-| **1 (이번)** | 뼈대 | plan / spec / summary, `ResourceScanner` 시그니처, `ResourceScanException`, 시그니처 test |
-| 2 | 발견과 검증 | classgraph 수집, FQCN 정렬, logicalId 검증, 인스턴스화, `kind` 추출, 중복 검사 + `fixture/scan/bad/**` |
-| 3 | 필드와 참조 추출 | 필드 순회, config / dependencies / requiredFields, 매크로 annotation 포착 + `fixture/scan/good/**` + SpotBugs 예외 목록 |
+| 1 | 뼈대 | plan / spec / summary, `ResourceScanner` 시그니처, `ResourceScanException`, 시그니처 test. #41 로 merge 됨 |
+| **2+3 (이번, 통합)** | 발견·검증 + 필드·참조 추출 | classgraph 수집, FQCN 정렬, logicalId 검증, 인스턴스화, `kind` 추출, 중복 검사, 필드 순회, config / dependencies / requiredFields, 매크로 annotation 포착, fixture 전부, SpotBugs 예외 목록 |
 
-2번과 3번 브랜치는 직전 브랜치가 아니라 **merge 된 `dev` 에서 딴다.** 이어서 파면 PR diff 에 앞
-단계 commit 이 다시 딸려 들어가 분할한 의미가 없어진다.
+> 원래 2번(발견과 검증)과 3번(필드와 참조 추출)으로 나눌 계획이었으나 **하나로 합쳤다.** 2번이
+> push 되기 전이라 지킬 리뷰 이력이 없었고, 이 repo 는 승인 3개가 필요해 PR 을 쪼갤수록 대기가
+> 곱으로 늘어난다. 리뷰 부담은 commit 경계(fixture → 구현 → 문서)로 대신 지킨다. main 코드는
+> `ResourceScanner` 한 파일이고, 줄수의 대부분은 fixture 와 test 와 docs 다.
+
+이 branch 는 1번이 merge 되기 전에 `feat/resource-scanner-skeleton` 에서 땄고, #41 이 merge 된
+뒤 `git rebase origin/dev` 로 base 를 옮겼다. base 였던 skeleton commit 들이 그대로 `dev` 에
+들어가 있어 충돌 없이 이번 commit 들만 얹혔다.
 
 구현 전체를 미리 써 본 작업본은 `resource-scanner-wip` 브랜치(`d609a97`)에 남겨 두었다. 설계 근거가
 실제로 도는 코드에서 나온 것이라는 뜻이고, 2번과 3번은 그것을 대조군 삼아 다시 유도한다.
@@ -166,33 +170,27 @@ List.copyOf: NPE -> null 거부
 classpath 스캔 순서는 환경에 따라 달라진다. 클래스는 `Class::getName` 으로, captured annotation 은
 annotation type 이름으로 정렬한다. 없으면 결과 순서가 머신마다 달라져 CI 에서만 깨지는 test 가 나온다.
 
+**필드도 같은 이유로 정렬한다.** `getDeclaredFields()` 는 순서를 보장하지 않으므로, 같은 클래스
+안에서는 필드명 사전순으로 읽는다. 안 그러면 `dependencies` 의 원소 순서가 머신마다 달라진다.
+상속 계층 간에는 자식이 먼저다 (§7-F).
+
 ### B. 메타 필드 `kind`, `provider` 는 config 에서 제외한다
 
 자원의 설정값이 아니라 자원을 식별하는 메타 정보다. `config` 에 섞이면 Comparator 가
 "종류가 바뀌었다"를 설정 변경으로 오인한다.
 
-### C. 🔶 `dependencies` 는 미결이다 (초안에서 판단 변경)
+### C. `dependencies` 는 `List<String>` 을 따른다 (미결에서 결정으로)
 
-앞선 초안은 "현재 타입(`List<String>`)에 맞추고 넘어간다"였다. 설계 문서를 읽고 **미결로 되돌린다.**
+한때 미결로 되돌렸던 항목인데, 코드를 다시 읽고 **현재 계약을 따르는 것으로 결정한다.**
+`DependencyDiff` 의 Javadoc 이 `field` 자리에 "대상 의존 자원의 logicalId 가 들어간다"고 이미
+못 박았고, `Comparator.diffDependencies` 가 그대로 구현하고 있다. 다이어그램의 빈 칸이 아니라
+**`dev` 에서 돌고 있는 계약**이므로, resource-state-classes plan §1 의 규율("이미 돌고 있는
+코드가 진실이고 뒤늦게 올라가는 쪽이 맞춘다")에 따라 맞춘다.
 
-다이어그램에서 `DependencyDiff` 는 `+ field: type` 이다. 타입 자리가 `type` 이라는 자리표시자
-그대로 비어 있다. 바로 옆 `FieldDiff` 는 `+ field: String` 으로 채워져 있다.
-`ResourceState` 도 `+ dependencies: List` 로만 그려져 있고 원소 타입이 없다.
-
-즉 `List<String>` 은 팀이 검토해서 고른 값이 아니라, 다이어그램에서 비어 있던 칸을 PR #19 가
-구현하면서 메운 값이다. 그리고 §5 에서 본 대로 그 값으로는 EC2 의 참조 5종과 RDS 의
-`subnetClasses` 배열을 표현할 수 없다.
-
-**결론을 이 feature 안에서 내지 않는다.** `spi` 계약이고 `Comparator`(현서 님 파일)에 걸린다.
-대신 아래처럼 짜서 결정이 늦어져도 스캐너가 막히지 않게 한다.
-
-- 의존성 추출을 **메서드 하나로 격리한다.** 필드 값 하나를 받아 참조 목록을 돌려주는 형태.
-- 그 메서드가 내부적으로는 `필드명 → logicalId 목록` 을 만들어 두고, 마지막에 현재 타입에 맞춰
-  logicalId 만 평탄화해서 넘긴다.
-- 타입이 바뀌면 **평탄화하는 한 줄과 그 test 만** 고치면 된다.
-
-정보를 만들어는 두고 계약이 좁아서 버리는 상태로 두는 것이다. 낭비처럼 보이지만, 21일 마감과
-미결 결정을 동시에 안고 가는 가장 싼 방법이다.
+필드명이 필요해지는 순간(예: executor 가 `spec.subnetClass()` 처럼 필드 단위로 resolve)이 오면
+`spi` 계약 변경으로 팀에서 다시 다룬다. 그때를 위해 의존성 추출은 **`referencesOf` 메서드 하나로
+격리해 둔다**. 필드 값 하나를 받아 참조 logicalId 목록을 돌려주는 형태라, 타입이 바뀌어도
+이 메서드와 그 test 만 고치면 된다.
 
 ### D. `ProviderResource` 미상속과 `kind` null 을 거부한다
 
@@ -226,14 +224,14 @@ scanOne(type)
   logicalId  = @Resource(name) 읽고 검증                → §9
   instance   = 인자 없는 생성자로 생성 (initializer block 이 여기서 실행됨)
   ProviderResource 인지 확인, kind 추출, null 이면 거부  → §7-D
-  필드 순회 (자식 → 부모)                                → §7-F
+  필드 순회 (자식 → 부모, 클래스 안에서는 필드명순)        → §7-A, §7-F
       static / synthetic  → skip
       kind / provider     → skip                        → §7-B
       이미 담은 이름       → skip (자식 우선)
       @Required 있으면    → requiredFields 에 이름 추가
       referencesOf(값)    → 참조 목록 (격리된 메서드)     → §7-C
-          값이 Class 이고 @Resource 있음  → [그 name]
-          값이 Collection/배열이고 원소가 위 조건 → [원소들의 name]
+          값이 Class                     → [그 @Resource name] (없으면 에러 → §9)
+          값이 Collection 이고 원소가 전부 Class → [원소들의 name] (없으면 에러)
           그 외                          → []
       참조 목록이 비어 있지 않으면 → dependencies 에 추가
       비어 있고 값이 null           → 아무 데도 안 넣음   → §6 🔴
@@ -266,13 +264,15 @@ public class ResourceScanException extends RuntimeException { ... }
 | `ProviderResource` 미상속 | §7-D |
 | 인스턴스화 후에도 `kind` 가 null | §7-D |
 | 인자 없는 생성자가 없어 인스턴스화 실패 | 원인 예외를 cause 로 |
+| 참조 필드가 `@Resource` 없는 클래스를 가리킴 | 참조 오타. 조용히 config 로 흘리면 `Class` 객체가 state 파일 직렬화에서 터진다 |
 | 필드 값을 읽지 못함 | `IllegalAccessException` 을 cause 로 |
 
 메시지에는 문제가 된 클래스의 FQCN 을 반드시 담는다. 사용자가 자기 코드 어디를 고쳐야 하는지
 바로 알아야 한다.
 
-> 예외 클래스를 어느 package 에 둘지는 §12 에 올린다. 사용자가 catch 할 수 있어야 하면 `api`,
-> 엔진이 삼키고 끝낼 거면 `internal` 이다. 지금은 `internal` 로 두고 논의한다.
+> package 배치는 `CONVENTIONS.md` §8.3 (#44) 이 `internal` 로 확정했다. 판별 규칙은 "엔진 밖의
+> 누군가가 이 타입을 코드에서 직접 쥐는가"이고, 예외를 잡는 쪽은 경계(`InfraStruct.run()`)의
+> 엔진 자신이다. 생성자 2개, `serialVersionUID`, FQCN 메시지 요구도 같은 절에 있다.
 
 ## 10. Test fixture 설계
 
@@ -296,7 +296,7 @@ spec.md 의 행동 목록이 될 순서다. §1-1 의 PR 경계를 함께 표시
 2. `scan()` 이 빈 `ScannedResources` 를 돌려준다 (스텁)
 3. `ResourceScanException` 이 메시지와 cause 를 보존하는 `RuntimeException` 이다
 
-**2번 PR (발견과 검증)**
+**이번 PR: 발견과 검증**
 
 4. `@Resource` 가 붙은 클래스를 모두 찾고 logicalId 는 `name()` 값 그대로다
 5. basePackage 밖의 자원은 스캔하지 않는다
@@ -304,7 +304,7 @@ spec.md 의 행동 목록이 될 순서다. §1-1 의 PR 경계를 함께 표시
 7. `kind` 를 `ProviderResource` 에서 읽는다
 8. 에러 6종이 각각 `ResourceScanException` 을 던지고 메시지에 FQCN 이 담긴다
 
-**3번 PR (필드와 참조 추출)**
+**이번 PR: 필드와 참조 추출** (§1-1 의 통합으로 같이 들어왔다)
 
 9. `kind` 와 `provider` 는 config 에도 dependencies 에도 들어가지 않는다
 10. 스칼라 필드가 config 에 이름과 값으로 들어간다
@@ -318,28 +318,28 @@ spec.md 의 행동 목록이 될 순서다. §1-1 의 PR 경계를 함께 표시
 18. 포착된 annotation 은 실제 붙어 있던 인스턴스이고 멤버 값을 읽을 수 있다
 19. 포착 순서가 annotation type 이름순으로 고정된다
 20. `@Behavior` 없는 annotation 은 포착되지 않는다
+21. 참조 필드의 순서가 필드명 사전순으로 고정된다 (§7-A)
+22. `@Resource` 없는 클래스를 가리키는 참조는 거부된다 (§9)
+23. 참조가 아닌 `Map` 값 필드는 config 로 간다. 프로바이더가 tag 를 `Map` 으로 바꾸는 논의가
+    있어, 어느 쪽으로 결정되든 스캐너가 막히지 않음을 고정해 둔다
 
 ## 12. 범위 밖 (그리고 왜)
 
-- **`scan()` 본문** — §1-1 의 2번과 3번 PR. 이번 PR 은 시그니처만 못 박는다.
-- **Test fixture (`fixture/scan/**`)** — 본문이 없으면 검증할 대상이 없다. 각 fixture 는 그것을
-  실제로 쓰는 PR 과 함께 올린다. §10 의 설계는 그대로 간다.
-- **SpotBugs 예외 목록 (`config/spotbugs/exclude.xml`)** — `setAccessible` 억제가 목적이라
-  reflection 코드가 들어오는 3번 PR 에서 함께 올린다. §14 참조.
 - **`InfraStruct.run()` 배선** — `PlanCreator` 가 PR #25 에 묶여 있어 파이프라인 전체를 엮을 수 없다.
   WBS 상 이것은 8/22 부터 정연 님 몫이다.
 - **`DesiredStateCreator` 본문 채우기** — 스캐너 출력이 그 입력이지만 남의 파일이다.
 - **provider 별 필터링** — `@InfraStructApplication(provider="aws")` 와 다른 프로바이더의 자원이
   섞였을 때 걸러 낼지는 Validator 의 판단으로 미룬다. 스캐너는 발견한 것을 전부 넘긴다.
 - **`spi/Required.java` Javadoc 예시 수정** (§5) — 남의 파일.
-- **`dependencies` 타입 변경** (§7-C) — `spi` 계약이고 `Comparator` 에 걸린다.
+- **`dependencies` 타입 변경**: §7-C 에서 현재 계약(`List<String>`)을 따르기로 결정했다. 필드명이
+  필요해지면 `spi` 계약 변경으로 팀에서 다룬다.
 
 ## 13. 열린 질문
 
-1. **`dependencies` 에 필드명을 남길 것인가** (§7-C). 설계 문서 기준으로는 남겨야 한다.
-   `spi` 변경이라 팀 결정이 필요하고, 이 feature 는 §7-C 의 격리 구조로 결정을 기다린다.
-2. **`ResourceScanException` 을 `api` 에 둘 것인가 `internal` 에 둘 것인가** (§9).
-   사용자가 catch 할 수 있어야 하는지에 달렸다.
+1. ~~**`dependencies` 에 필드명을 남길 것인가**~~: §7-C 에서 결정. 현재 계약(`List<String>`)을
+   따르고, 추출 로직은 `referencesOf` 로 격리해 타입 변경에 대비한다.
+2. ~~**`ResourceScanException` 을 `api` 에 둘 것인가 `internal` 에 둘 것인가**~~: `CONVENTIONS.md`
+   §8.3 (#44) 이 `internal` 로 확정했다.
 3. **`Required` Javadoc 과 다이어그램의 자원 예시를 누가 언제 고칠 것인가** (§5).
    지금 상태로는 컴파일되지 않는 예시라 프로바이더 개발자가 그대로 따라 하면 막힌다.
 
@@ -350,7 +350,7 @@ spec.md 의 행동 목록이 될 순서다. §1-1 의 PR 경계를 함께 표시
   프레임워크에는 실제로 걸린다. 이번엔 classpath 사용을 전제로 두되, plan.md §5 의
   "internal 격리 강화(JPMS)" 항목과 함께 다뤄야 한다.
 - **SpotBugs** 가 `setAccessible` 에 `DP_DO_INSIDE_DO_PRIVILEGED` 를 낼 수 있다. reflection 스캐너의
-  본질적 동작이므로 `@SuppressFBWarnings` 로 사유를 적어 억제한다. `ProviderResource` 가 이미
-  같은 방식으로 국소 예외를 둔 선례가 있다.
+  본질적 동작이므로 `valueOf` 메서드에 `@SuppressFBWarnings` 로 사유를 적어 억제했다.
+  `ProviderResource` 가 이미 같은 방식으로 국소 예외를 둔 선례가 있다.
 - **Checkstyle** 은 generic type parameter 를 대문자 한 글자로만 허용한다.
 - **`java.util.Comparator` 이름 충돌** (§2). 컴파일 에러로 바로 드러나므로 위험도는 낮다.
