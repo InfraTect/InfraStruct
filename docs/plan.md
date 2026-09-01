@@ -215,6 +215,16 @@ InfraStruct/
 - 🔶 **ServiceLoader 등록 방식** — 프로바이더 이름("aws")을 무엇에 어떻게 매핑할지, `META-INF/services`에 무엇을 등록시킬지.
 - 🔶 **classgraph 유지 여부** — 리소스 스캔은 classgraph, 프로바이더 등록은 ServiceLoader로 갈지, 아니면 스캔도 다른 방식으로 갈지.
 - 🔶 **internal 격리 수준** — 패키지 관례만으로 둘지, JPMS `module-info`까지 갈지.
+- 🔶 **`config` 숫자 정규화를 `ResourceState` 생성자로 올릴지** — 현재 규칙은 "정수는 `Long`, 소수는 `Double`"
+  이고(2026-08-20 확정, `CONVENTIONS.md` §9.3), 파일에서 **읽을 때만** 강제된다. 그래서 config 를
+  *채우는* 쪽(`DesiredStateCreator`, 프로바이더의 `Applier`, 테스트 픽스처)이 `int port = 22` 를 그대로
+  오토박싱해 `Integer 22` 를 넣으면 복원된 `Long 22` 와 어긋나 **아무것도 안 바꿔도 매번 UPDATE 가 뜬다**
+  (apply 해도 같은 값이 다시 저장되므로 사라지지 않는 유령 diff).
+  → `ResourceState` 생성자의 `Map.copyOf(config)` 를 정규화 복사로 바꾸면 `Scanned`/`Desired`/`Current` 가
+  모두 그 관문을 지나므로 아무도 규칙을 기억할 필요가 없어진다. 규칙을 "지켜야 하는 약속"에서 "어길 수 없는
+  구조"로 바꾸는 변경. spi 클래스라 파급이 있어 별도 feature 로 뺀다.
+  적용하면 `CurrentStateStoreTest` 픽스처의 `22L` 과 `DesiredStateCreator` Javadoc 의 경고도 함께 정리된다.
+  ※ 사용자 코드에는 영향 없다 — 자원 클래스에는 계속 `int port = 22` 라고 쓴다.
 
 ### 배포 시점에 결정할 것
 - 🔶 **groupId 최종** — `com.infratect`는 Central에서 도메인 소유 증명 필요. 도메인 없으면 `io.github.<계정>`. (지금은 `com.infratect`로 시작, 배포 때 확정)

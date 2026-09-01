@@ -443,14 +443,35 @@ enum 이 아닌 `Kind` 구현체는 상태 파일에서 복원할 수 없고, `C
 가리키는 참조가 `config` 에 섞이면 Comparator 가 **"값이 바뀐 것"과 "의존 관계가 바뀐 것"을
 구분하지 못한다.**
 
-### 9.3 숫자는 왕복에서 Java 타입이 보존되지 않는다
+### 9.3 `config` 의 숫자는 정수=`Long`, 소수=`Double` 로 통일한다
 
-JSON 의 숫자에는 `int`/`long`/`double` 구분이 없다. `CurrentStateStore` 는 읽을 때 소수부와
-범위를 보고 `Integer`/`Long`/`Double` 로 정규화하지만, **`long` 인데 값이 작으면 `Integer` 로
-돌아온다.** 값은 같고 타입만 달라진다.
+JSON 의 숫자에는 `int`/`long`/`double` 구분이 없어 선언 타입을 되살릴 수 없다. 그래서
+`CurrentStateStore` 는 읽을 때 **정수는 무조건 `Long`, 소수는 무조건 `Double`** 로 통일한다.
+값의 크기를 보고 `int` 범위면 `Integer` 로 좁히는 식의 추측은 하지 않는다.
 
-→ **`config` 값을 비교하는 코드는 숫자를 타입이 아니라 값으로 비교해야 한다.**
-`Object.equals` 로 비교하면 `Long 100` 과 `Integer 100` 이 다르다고 나온다.
+→ **`config` 를 채우는 코드도 같은 정규 타입을 써야 한다.**
+
+```java
+config.put("port", 22L);    // O — 정수는 Long
+config.put("port", 22);     // X — Integer 가 들어간다
+```
+
+`int port = 22` 를 그대로 오토박싱하면 `Integer 22` 인데, 파일에서 복원된 값은 `Long 22` 다.
+`Comparator` 의 `Objects.equals` 가 둘을 다르다고 보므로 **아무것도 안 바꿨는데 매번 UPDATE 가
+뜨고, apply 해도 같은 값이 다시 저장되므로 사라지지 않는다.**
+
+지금 이 규칙을 직접 지켜야 하는 곳은 `DesiredStateCreator` 다 — desired 는 파일을 거치지 않고
+바로 Comparator 로 가기 때문이다. 프로바이더가 `Applier` 에서 만든 current 는 어차피 상태 파일을
+왕복하며 정규화되므로 필수는 아니지만, 맞춰 두면 헷갈릴 일이 없다.
+
+> **사용자 코드에는 영향이 없다.** 자원 클래스에는 그대로 `int port = 22` 라고 쓴다. 엔진이
+> 리플렉션으로 읽어 `config` 에 넣을 때 정규 타입으로 바꾼다.
+
+> **2026-08-20 개정.** 원래 규칙은 "소수부 없음 + `int` 범위 → `Integer`" 였다. `config` 필드가
+> 대부분 `int` 라는 이유였지만, 그 대가로 `long sizeGb = 100` 이 `Integer 100` 으로 돌아와 위의
+> 유령 diff 를 만들었다. `Long` 통일은 `int`·`long` 양쪽이 모두 맞아떨어져 손해 보는 쪽이 없다.
+> 이 절이 요구하는 약속 자체를 구조로 없애는 방안(정규화를 `ResourceState` 생성자로 올리기)은
+> `docs/plan.md` §9 에 열린 항목으로 있다.
 
 ---
 

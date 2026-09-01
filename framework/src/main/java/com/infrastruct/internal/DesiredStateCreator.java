@@ -42,6 +42,12 @@ public final class DesiredStateCreator {
      * <p>자원 개수는 변하지 않는다 — 이 단계는 자원을 더하거나 빼지 않고 순서를 지킨 채 1:1 로 옮긴다. {@code requiredFields} 가 실제로
      * 채워졌는지는 <b>검증하지 않는다</b>. 그것은 위반을 모아 보고해야 하는 {@code Validator} 의 일이고, 이 모듈은 변환만 한다.
      *
+     * <p><b>config 숫자 규칙(구현 시 반드시 지킬 것): 정수는 {@code Long}, 소수는 {@code Double} 로 넣는다.</b> {@code int
+     * port = 22} 를 그대로 오토박싱하면 {@code Integer 22} 가 되는데, {@code CurrentStateStore} 가 복원한 값은 {@code
+     * Long 22} 라 {@code Comparator} 의 {@code Objects.equals} 가 둘을 다르다고 본다 → 아무것도 안 바꿔도 매번 UPDATE 가
+     * 뜬다. 저장소 쪽 근거는 {@code CurrentStateStore.normalizeConfig} 참조. 이 약속을 구조로 대체하는 방안(정규화를 {@code
+     * ResourceState} 생성자로 올리기)은 {@code docs/plan.md} §9 에 열린 항목으로 있다.
+     *
      * @param scanned 스캐너가 만든 스캔 결과
      * @return 어노테이션이 모두 풀린 원하는 상태
      * @throws NullPointerException {@code scanned} 가 {@code null} 인 경우
