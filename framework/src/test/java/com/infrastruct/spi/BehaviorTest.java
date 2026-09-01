@@ -13,7 +13,9 @@ class BehaviorTest {
     /** 픽스처: 아무 핸들러 구현체. */
     static class FixtureHandler implements BehaviorHandler<Annotation> {
         @Override
-        public void handle(Annotation annotation, ScannedResourceState state) {}
+        public ScannedResourceState handle(Annotation annotation, ScannedResourceState state) {
+            return state;
+        }
     }
 
     /** 픽스처: @Behavior 가 붙은 매크로 어노테이션 선언. */

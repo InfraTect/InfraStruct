@@ -27,7 +27,9 @@ class ScannedResourceStateTest {
     /** 픽스처: 담을 핸들러 클래스. */
     static class FixtureHandler implements BehaviorHandler<Annotation> {
         @Override
-        public void handle(Annotation annotation, ScannedResourceState state) {}
+        public ScannedResourceState handle(Annotation annotation, ScannedResourceState state) {
+            return state;
+        }
     }
 
     private static CapturedAnnotation captured() {
@@ -52,5 +54,32 @@ class ScannedResourceStateTest {
         assertThat(state.config()).containsExactly(Map.entry("instanceType", "t3.micro"));
         assertThat(state.dependencies()).containsExactly("vpc.myVpc");
         assertThat(state.capturedAnnotations()).containsExactly(annotation);
+    }
+
+    @Test
+    void withConfigEntryCopiesWithOneEntryAddedOrOverwritten() {
+        CapturedAnnotation annotation = captured();
+        ScannedResourceState origin =
+                new ScannedResourceState(
+                        TEST_KIND,
+                        "ec2.myEc2",
+                        Map.of("a", 1),
+                        List.of("vpc.myVpc"),
+                        Set.of("a"),
+                        List.of(annotation));
+
+        ScannedResourceState added = origin.withConfigEntry("b", 2);
+        ScannedResourceState overwritten = origin.withConfigEntry("a", 9);
+
+        assertThat(added.config()).containsOnly(Map.entry("a", 1), Map.entry("b", 2));
+        assertThat(overwritten.config()).containsOnly(Map.entry("a", 9));
+        // 불변이므로 원본은 그대로여야 한다 — 사본을 돌려주는 것이 이 메서드의 존재 이유다.
+        assertThat(origin.config()).containsOnly(Map.entry("a", 1));
+        // config 외의 필드를 하나라도 빠뜨리면 그 자원의 의존 관계가 조용히 사라진다.
+        assertThat(added.kind()).isSameAs(TEST_KIND);
+        assertThat(added.logicalId()).isEqualTo("ec2.myEc2");
+        assertThat(added.dependencies()).containsExactly("vpc.myVpc");
+        assertThat(added.requiredFields()).containsExactly("a");
+        assertThat(added.capturedAnnotations()).containsExactly(annotation);
     }
 }
